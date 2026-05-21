@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ReachOut AI — Recruiter Outreach Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0C0C0F;
+  --surface: #131318;
+  --surface2: #1A1A22;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --accent: #C8F04A;
+  --accent2: #A8D63A;
+  --text: #F0EFE8;
+  --muted: #7A7A8A;
+  --muted2: #5A5A68;
+  --li: #0A66C2;
+  --wa: #25D366;
+  --em: #EA4335;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* NOISE TEXTURE */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+}
+
+/* GLOW ORBS */
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+}
+.orb1 { width: 500px; height: 500px; background: rgba(200,240,74,0.06); top: -100px; right: -100px; }
+.orb2 { width: 400px; height: 400px; background: rgba(100,80,220,0.05); bottom: 100px; left: -150px; }
+
+/* LAYOUT */
+.container { max-width: 860px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+/* NAV */
+nav {
+  padding: 24px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Instrument Serif', serif;
+  font-size: 22px;
+  color: var(--text);
+  text-decoration: none;
+}
+.logo-dot {
+  width: 8px; height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:.5;transform:scale(1.4)}
+}
+.nav-tag {
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--border2);
+  padding: 4px 12px;
+  border-radius: 99px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+/* HERO */
+.hero {
+  padding: 72px 0 56px;
+  text-align: center;
+}
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+  padding: 6px 16px;
+  border: 1px solid rgba(200,240,74,0.25);
+  border-radius: 99px;
+  background: rgba(200,240,74,0.05);
+}
+.hero h1 {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(40px, 7vw, 72px);
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--text);
+  margin-bottom: 20px;
+  letter-spacing: -.02em;
+}
+.hero h1 em {
+  font-style: italic;
+  color: var(--accent);
+}
+.hero-sub {
+  font-size: 17px;
+  color: var(--muted);
+  max-width: 500px;
+  margin: 0 auto 48px;
+  line-height: 1.7;
+  font-weight: 300;
+}
+.stats-row {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  margin-bottom: 56px;
+  flex-wrap: wrap;
+}
+.stat { text-align: center; }
+.stat-num {
+  font-family: 'Instrument Serif', serif;
+  font-size: 32px;
+  color: var(--text);
+  display: block;
+}
+.stat-label { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+.stat-divider {
+  width: 1px;
+  background: var(--border);
+  align-self: stretch;
+}
+
+/* FORM CARD */
+.form-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 40px;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.form-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(200,240,74,0.4), transparent);
+}
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.field { display: flex; flex-direction: column; gap: 7px; }
+.field-full { grid-column: 1/-1; }
+label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+input, select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--text);
+  transition: border-color .2s, box-shadow .2s;
+  -webkit-appearance: none;
+}
+input::placeholder { color: var(--muted2); }
+input:focus, select:focus {
+  outline: none;
+  border-color: rgba(200,240,74,0.4);
+  box-shadow: 0 0 0 3px rgba(200,240,74,0.06);
+}
+select { cursor: pointer; }
+select option { background: #1A1A22; }
+
+.tone-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.tone-btn {
+  padding: 10px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .18s;
+  text-align: center;
+}
+.tone-btn:hover { border-color: var(--border2); color: var(--text); }
+.tone-btn.selected {
+  border-color: var(--accent);
+  background: rgba(200,240,74,0.08);
+  color: var(--accent);
+}
+
+/* GENERATE BUTTON */
+.gen-btn {
+  width: 100%;
+  padding: 16px;
+  background: var(--accent);
+  color: #0C0C0F;
+  border: none;
+  border-radius: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  letter-spacing: .01em;
+}
+.gen-btn:hover:not(:disabled) {
+  background: var(--accent2);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 32px rgba(200,240,74,0.2);
+}
+.gen-btn:active:not(:disabled) { transform: translateY(0); }
+.gen-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+/* LOADING */
+.loading-bar {
+  height: 2px;
+  background: var(--border);
+  border-radius: 99px;
+  margin-top: 20px;
+  overflow: hidden;
+  display: none;
+}
+.loading-bar.active { display: block; }
+.loading-bar-inner {
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: loading 1.4s infinite;
+  width: 40%;
+}
+@keyframes loading {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+.loading-text {
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 12px;
+  display: none;
+}
+.loading-text.active { display: block; }
+
+/* RESULTS */
+.results-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  margin-bottom: 60px;
+  display: none;
+  animation: fadeUp .4s ease;
+}
+.results-card.visible { display: block; }
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(16px); }
+  to { opacity:1; transform:translateY(0); }
+}
+
+/* TABS */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.tab-btn {
+  flex: 1;
+  padding: 16px 12px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all .18s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  letter-spacing: .02em;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--text); }
+.tab-btn.active.li { border-color: #0A66C2; color: #5BA3E8; }
+.tab-btn.active.wa { border-color: #25D366; color: #4FD984; }
+.tab-btn.active.em { border-color: #EA4335; color: #F07066; }
+
+.tab-icon {
+  width: 18px; height: 18px;
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.tab-icon.li { background: #0A66C2; color: white; }
+.tab-icon.wa { background: #25D366; color: white; }
+.tab-icon.em { background: #EA4335; color: white; }
+
+/* MESSAGE PANEL */
+.msg-panel { display: none; padding: 32px; }
+.msg-panel.active { display: block; }
+
+.msg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.msg-title { font-size: 13px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.copy-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .18s;
+}
+.copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+.copy-btn.copied { border-color: var(--accent); color: var(--accent); background: rgba(200,240,74,0.08); }
+
+.msg-body {
+  font-size: 15px;
+  color: var(--text);
+  line-height: 1.85;
+  white-space: pre-wrap;
+  font-weight: 300;
+  padding: 24px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  min-height: 120px;
+}
+
+/* SUBJECT LINE (email) */
+.subject-line {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: rgba(200,240,74,0.05);
+  border: 1px solid rgba(200,240,74,0.15);
+  border-radius: 8px;
+  display: none;
+}
+.subject-line span { color: var(--accent); font-weight: 500; }
+
+/* FOOTER */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 28px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted2);
+  position: relative;
+  z-index: 1;
+}
+
+/* SCROLL ANIMATIONS */
+.fade-in {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity .6s ease, transform .6s ease;
+}
+.fade-in.visible { opacity: 1; transform: none; }
+
+@media (max-width: 640px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .tone-grid { grid-template-columns: repeat(2,1fr); }
+  .form-card { padding: 24px 20px; }
+  .stats-row { gap: 24px; }
+  .stat-divider { display: none; }
+  nav { flex-direction: column; gap: 12px; text-align: center; }
+}
+</style>
+</head>
+<body>
+
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+
+<div class="container">
+  <nav>
+    <a class="logo" href="#">
+      <div class="logo-dot"></div>
+      ReachOut <em style="font-style:italic;color:var(--accent)">AI</em>
+    </a>
+    <span class="nav-tag">Recruiter Tool · AI Powered</span>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero fade-in">
+    <div class="hero-eyebrow">
+      <div class="logo-dot" style="width:6px;height:6px"></div>
+      Built for HR recruiters
+    </div>
+    <h1>Stop writing.<br>Start <em>connecting.</em></h1>
+    <p class="hero-sub">Generate personalized LinkedIn, WhatsApp & Email outreach in 5 seconds. Your candidates deserve a message that feels human.</p>
+    <div class="stats-row">
+      <div class="stat">
+        <span class="stat-num">5s</span>
+        <span class="stat-label">Per message</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat">
+        <span class="stat-num">3×</span>
+        <span class="stat-label">Channels at once</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat">
+        <span class="stat-num">0</span>
+        <span class="stat-label">Generic templates</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- FORM -->
+  <div class="form-card fade-in">
+    <div class="form-grid">
+      <div class="field">
+        <label>Candidate Name</label>
+        <input id="name" type="text" placeholder="e.g. Priya Sharma" autocomplete="off"/>
+      </div>
+      <div class="field">
+        <label>Role You're Hiring For</label>
+        <input id="role" type="text" placeholder="e.g. Senior HR Business Partner" autocomplete="off"/>
+      </div>
+      <div class="field">
+        <label>Candidate's Current Role</label>
+        <input id="current" type="text" placeholder="e.g. HR Executive at Infosys" autocomplete="off"/>
+      </div>
+      <div class="field">
+        <label>Key Selling Point</label>
+        <input id="hook" type="text" placeholder="e.g. Remote work, ₹18–22 LPA, fast growth" autocomplete="off"/>
+      </div>
+      <div class="field field-full">
+        <label>Your Name / Company</label>
+        <input id="sender" type="text" placeholder="e.g. Rahul · TalentBridge HR" autocomplete="off"/>
+      </div>
+    </div>
+
+    <label style="margin-bottom:10px;display:block">Tone</label>
+    <div class="tone-grid">
+      <button class="tone-btn selected" data-tone="friendly and professional" onclick="selectTone(this)">👋 Friendly</button>
+      <button class="tone-btn" data-tone="formal and corporate" onclick="selectTone(this)">💼 Formal</button>
+      <button class="tone-btn" data-tone="casual and warm" onclick="selectTone(this)">☀️ Casual</button>
+      <button class="tone-btn" data-tone="confident and direct" onclick="selectTone(this)">⚡ Direct</button>
+    </div>
+
+    <button class="gen-btn" id="genBtn" onclick="generate()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.8H20l-5 3.6 1.9 5.8L12 15l-4.9 3.2 1.9-5.8L4 8.8h6.1z"/></svg>
+      Generate outreach messages
+    </button>
+
+    <div class="loading-bar" id="loadingBar"><div class="loading-bar-inner"></div></div>
+    <div class="loading-text" id="loadingText">Writing personalized messages…</div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results-card" id="results">
+    <div class="tabs">
+      <button class="tab-btn li active" onclick="switchTab('li',this)" id="tab-li">
+        <div class="tab-icon li">in</div> LinkedIn
+      </button>
+      <button class="tab-btn wa" onclick="switchTab('wa',this)" id="tab-wa">
+        <div class="tab-icon wa">W</div> WhatsApp
+      </button>
+      <button class="tab-btn em" onclick="switchTab('em',this)" id="tab-em">
+        <div class="tab-icon em">@</div> Email
+      </button>
+    </div>
+
+    <!-- LinkedIn -->
+    <div class="msg-panel active" id="panel-li">
+      <div class="msg-header">
+        <span class="msg-title">LinkedIn Message</span>
+        <button class="copy-btn" onclick="copyMsg('li',this)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          Copy
+        </button>
+      </div>
+      <div class="msg-body" id="msg-li"></div>
+    </div>
+
+    <!-- WhatsApp -->
+    <div class="msg-panel" id="panel-wa">
+      <div class="msg-header">
+        <span class="msg-title">WhatsApp Message</span>
+        <button class="copy-btn" onclick="copyMsg('wa',this)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          Copy
+        </button>
+      </div>
+      <div class="msg-body" id="msg-wa"></div>
+    </div>
+
+    <!-- Email -->
+    <div class="msg-panel" id="panel-em">
+      <div class="msg-header">
+        <span class="msg-title">Email</span>
+        <button class="copy-btn" onclick="copyMsg('em',this)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          Copy
+        </button>
+      </div>
+      <div class="subject-line" id="subjectLine">Subject: <span id="subjectText"></span></div>
+      <div class="msg-body" id="msg-em"></div>
+    </div>
+  </div>
+
+  <footer>
+    Built with AI · <span style="color:var(--accent)">ReachOut AI</span> · Made for recruiters who value their time
+  </footer>
+</div>
+
+<script>
+let selectedTone = 'friendly and professional';
+const msgs = { li: '', wa: '', em: '' };
+
+// fade-in on scroll
+const obs = new IntersectionObserver(els => els.forEach(e => { if(e.isIntersecting) e.target.classList.add('visible'); }), { threshold: 0.1 });
+document.querySelectorAll('.fade-in').forEach(el => obs.observe(el));
+
+function selectTone(btn) {
+  document.querySelectorAll('.tone-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedTone = btn.dataset.tone;
+}
+
+function switchTab(key, el) {
+  ['li','wa','em'].forEach(k => {
+    document.getElementById('panel-'+k).classList.toggle('active', k===key);
+    document.getElementById('tab-'+k).classList.remove('active');
+  });
+  el.classList.add('active');
+  if(key==='em') document.getElementById('subjectLine').style.display = 'block';
+  else document.getElementById('subjectLine').style.display = 'none';
+}
+
+function copyMsg(key, btn) {
+  navigator.clipboard.writeText(msgs[key]).then(() => {
+    btn.classList.add('copied');
+    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!`;
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy`;
+    }, 2000);
+  });
+}
+
+async function generate() {
+  const name = document.getElementById('name').value.trim();
+  const role = document.getElementById('role').value.trim();
+  const current = document.getElementById('current').value.trim();
+  const hook = document.getElementById('hook').value.trim();
+  const sender = document.getElementById('sender').value.trim();
+
+  if (!name || !role) {
+    document.getElementById('name').style.borderColor = !name ? '#ff6b6b' : '';
+    document.getElementById('role').style.borderColor = !role ? '#ff6b6b' : '';
+    return;
+  }
+
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  document.getElementById('loadingBar').classList.add('active');
+  document.getElementById('loadingText').classList.add('active');
+  document.getElementById('results').classList.remove('visible');
+
+  const prompt = `You are an expert HR recruiter crafting personalized outreach messages. Write 3 distinct messages. Be human, warm, and specific — never robotic or generic.
+
+Details:
+- Candidate: ${name}
+- Their current role: ${current || 'not specified'}
+- Role being offered: ${role}
+- Key selling point: ${hook || 'great opportunity'}
+- Sender: ${sender || 'the Recruitment Team'}
+- Tone: ${selectedTone}
+
+Respond ONLY with a valid JSON object, no markdown, no backticks, no explanation:
+{
+  "subject": "<email subject line only, no 'Subject:' prefix, make it compelling and personal>",
+  "linkedin": "<LinkedIn InMail or connection note — 4-5 lines max. Open with something specific about their background. Mention the role briefly. One clear CTA. Conversational, not salesy.>",
+  "whatsapp": "<WhatsApp text — 3-4 lines. Use first name. Casual yet professional. Mention role + one hook. End asking if they're open to a quick call.>",
+  "email": "<Email body only, no subject. 5-7 lines. Warm opener referencing their experience. Describe what makes this role exciting. Clear next step. Sign off with sender name.>"
+}`;
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const r = data.result;
+    msgs.li = r.linkedin;
+    msgs.wa = r.whatsapp;
+    msgs.em = r.email;
+
+    document.getElementById('msg-li').textContent = r.linkedin;
+    document.getElementById('msg-wa').textContent = r.whatsapp;
+    document.getElementById('msg-em').textContent = r.email;
+    document.getElementById('subjectText').textContent = r.subject;
+
+    document.getElementById('results').classList.add('results-card', 'visible');
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch(e) {
+    alert('Could not generate messages. Please check your API configuration.');
+    console.error(e);
+  }
+
+  btn.disabled = false;
+  document.getElementById('loadingBar').classList.remove('active');
+  document.getElementById('loadingText').classList.remove('active');
+}
+</script>
+</body>
+</html>
