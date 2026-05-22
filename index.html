@@ -956,45 +956,78 @@ async function generate() {
     msgEl.textContent = loaderMsgs[msgIdx];
   }, 1200);
  
-  // Build channel-specific instructions
-  const chInstructions = channels.map(ch => {
-    const rules = {
-      linkedin: '"linkedin": "<4–5 line InMail or connection note. Open with something specific about their background or the role. Mention what makes this exciting. One clear, easy CTA. No buzzwords. No generic opener like \'Hope this message finds you well\'>"',
-      whatsapp: '"whatsapp": "<3–4 lines. Use first name only. WhatsApp-appropriate: warm but brief. Mention the role + one standout hook. End with a soft question like are they open to a quick chat>"',
-      email:    '"email": "<Full email body, 5–7 lines, no subject here. Warm opener that references their specific experience. What makes this role genuinely exciting. A clear next step. Professional sign-off with sender name>"',
-      sms:      '"sms": "<Ultra-short, under 155 characters. First name, role, company, and a single question. No fluff>"',
-      twitter:  '"twitter": "<Twitter/X DM, under 270 chars. Casual, direct, no salesy language. Mention the role briefly, ask if they\'re open>"',
-    };
-    return rules[ch];
-  }).join(',\n  ');
- 
-  const prompt = `You are an expert HR recruiter who writes outreach messages that feel genuinely human — personal, warm, and never robotic or generic.
- 
-Role details:
-- Job title: ${role}
-- Company: ${company || 'not specified'}
+  // ─── CHANNEL RULES & PROMPT BUILD ──────────────────────
+  const chRules = {
+    linkedin: `LINKEDIN MESSAGE (InMail / connection note):
+  • Length: 4–6 sentences, 150–220 words
+  • Sentence 1: Open with something real and specific — their current company, a career transition, a notable skill, their experience arc. NEVER open with "I came across your profile" or a generic compliment.
+  • Sentences 2–3: Introduce the role title, the hiring company, and one genuinely compelling detail (scope of impact, team size, mission, compensation, growth stage)
+  • Sentence 4: Explicitly connect their specific background to why they — not just anyone — are a strong fit
+  • Sentence 5: A single low-friction CTA — e.g. "Would you be open to a quick 15-min call this week?"
+  • Final line (on its own): [Sender name] | [Sender role] at [Sender company]
+  • FORBIDDEN words: "exciting opportunity", "touch base", "Hope this finds you well", "impressive background"`,
+
+    whatsapp: `WHATSAPP MESSAGE:
+  • 3–5 short lines, 80–120 words — must read like a real human WhatsApp message, not a formal letter
+  • Line 1: "Hi [First name]! I'm [sender name] from [sender company]." + one sentence on exactly why you're reaching out right now
+  • Lines 2–3: Role title, hiring company, and one compelling hook (compensation / remote-friendly / growth / interesting scope)
+  • Last line: A soft open question — e.g. "Would you be open to a quick 15-min chat?"
+  • Warm and conversational. Short lines. No formal language. No bullet points inside the message.`,
+
+    email: `EMAIL BODY (the subject line is a separate JSON field — do NOT include it here):
+  • 180–240 words, formal professional recruiter email
+  • CRITICAL: use the two-character sequence \\n\\n between every paragraph — this is mandatory for correct line spacing
+  • Follow this EXACT structure (fill in the bracketed parts with real content):
+    "Hi [Candidate first name],\\n\\n[Opening paragraph — 2–3 sentences: reference their actual current role or company, then clearly state why you are writing to them specifically]\\n\\n[Middle paragraph — 2–3 sentences: describe what makes this role genuinely interesting — the work, the team, the scope of impact, and compensation if known]\\n\\n[Closing paragraph — 1–2 sentences: propose a concrete low-effort next step, e.g. 'Would a 20-minute call this week or next work for you?']\\n\\nBest regards,\\n[Sender full name]\\n[Sender role] | [Sender company]"
+  • No bullet points inside the email. No "Hope this finds you well." No generic filler.`,
+
+    sms: `SMS:
+  • ABSOLUTE HARD LIMIT: 155 characters total — count every character including spaces and punctuation before finalising
+  • Format: "[First name], [Role] at [Company] — [one compelling hook in 5–8 words]. Interested? Reply Y"
+  • Ultra-concise. One sentence. No exclamation overload. No formal language.`,
+
+    twitter: `TWITTER / X DM:
+  • Absolute character limit: 270 characters total — do not exceed this
+  • Format: "[First name] — [one specific genuine observation about them or their work]. Have a [Role] opening at [Company] — [one hook]. Open to a quick chat?"
+  • Casual, direct, punchy. No corporate language. No formal greeting.`,
+  };
+
+  const channelRulesBlock = channels.map(ch => chRules[ch]).join('\n\n');
+
+  const chJsonKeys = [
+    ...(channels.includes('email') ? ['"subject": "<subject line — under 60 chars, no \'Subject:\' prefix, specific and curiosity-inducing — never generic>"'] : []),
+    ...channels.map(ch => `"${ch}": "<message>"`),
+  ].join(',\n  ');
+
+  const prompt = `CONTEXT — generate recruiter outreach messages for the following:
+
+ROLE BEING HIRED FOR:
+- Title: ${role}
+- Hiring company: ${company || 'not specified'}
 - Location: ${location || 'not specified'}
 - Compensation: ${comp || 'not specified'}
-- What makes this role great: ${hook || 'not specified'}
-${jd ? `- Job Description: ${jd}` : ''}
- 
-Candidate details:
+- Why it is a great opportunity: ${hook || 'not specified'}${jd ? `\n- Job description: ${jd}` : ''}
+
+CANDIDATE BEING REACHED OUT TO:
 - Name: ${cname}
-- Current role: ${ctitle || 'not specified'}
+- Current title / company: ${ctitle || 'not specified'}
 - Experience level: ${exp || 'not specified'}
-- Notable thing about them: ${notable || 'not specified'}
- 
-Sender:
-- Name: ${sender || 'the recruitment team'}
-- Role: ${srole || 'recruiter'}
+- Notable detail about them: ${notable || 'not specified'}
+
+SENDER (person whose name signs these messages):
+- Name: ${sender || 'the recruiter'}
+- Title: ${srole || 'Recruiter'}
 - Company: ${scompany || 'not specified'}
- 
-Tone: ${tone}
- 
-Write only the requested channels. Respond ONLY with a valid JSON object — no markdown, no backticks, no explanation:
+
+OVERALL TONE: ${tone}
+
+CHANNEL-SPECIFIC WRITING RULES — follow each one precisely:
+
+${channelRulesBlock}
+
+OUTPUT — respond with ONLY the following JSON object, nothing else before or after it:
 {
-  ${channels.includes('email') ? '"subject": "<compelling email subject, under 60 chars, personal and curiosity-inducing, no \'Subject:\' prefix>",' : ''}
-  ${chInstructions}
+  ${chJsonKeys}
 }`;
  
   try {
