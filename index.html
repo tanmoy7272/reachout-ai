@@ -467,7 +467,7 @@ footer {
       <div class="logo-mark">✦</div>
       ReachOut AI
     </a>
-    <span class="badge">Gemini Powered</span>
+    <span class="badge">AI Powered</span>
   </nav>
  
   <!-- HERO -->
@@ -538,6 +538,14 @@ footer {
         </div>
       </div>
  
+      <div class="field field-full">
+        <label>
+          Job Description
+          <span class="label-hint">(optional — paste JD for best results)</span>
+        </label>
+        <textarea id="jd" rows="4" placeholder="Paste the job description here (or key requirements). This helps craft highly targeted messages." oninput="onInput()"></textarea>
+      </div>
+
       <div class="field field-full">
         <label>
           What makes this role exciting?
@@ -631,9 +639,16 @@ footer {
         <label>Your Role</label>
         <input id="srole" type="text" placeholder="e.g. Talent Acquisition Lead" autocomplete="off" oninput="onInput()"/>
       </div>
+      <div class="field">
+        <label>Your Company</label>
+        <div class="input-wrapper has-icon">
+          <span class="input-icon">🏷️</span>
+          <input id="scompany" type="text" placeholder="e.g. 2COMS" autocomplete="off" oninput="onInput()"/>
+        </div>
+      </div>
     </div>
   </div>
- 
+
   <!-- ─── STEP 4: TONE & CHANNELS ─── -->
   <div class="card fade-up" id="card4">
     <div class="step-header">
@@ -643,7 +658,7 @@ footer {
         <p>Pick how you want to sound and where to send it</p>
       </div>
     </div>
- 
+
     <label style="margin-bottom:10px;display:block">Tone of voice</label>
     <div class="tone-grid" style="margin-bottom:28px">
       <button class="tone-btn sel" data-tone="friendly and warm, like talking to a colleague" onclick="selTone(this)">
@@ -659,7 +674,7 @@ footer {
         <span class="tone-icon">⚡</span>Direct
       </button>
     </div>
- 
+
     <label style="margin-bottom:10px;display:block">
       Select channels
       <span class="label-hint">(pick one or more)</span>
@@ -722,7 +737,7 @@ footer {
   </div>
  
   <footer>
-    Powered by Gemini AI · <strong style="color:var(--a2)">ReachOut AI</strong> · Made for recruiters who value their time
+    Driven by Intelligence · <strong style="color:var(--a2)">ReachOut AI</strong> · Made for recruiters who value their time
   </footer>
 </div>
  
@@ -917,11 +932,13 @@ async function generate() {
   const location = document.getElementById('location').value.trim();
   const comp     = document.getElementById('comp').value.trim();
   const hook     = document.getElementById('hook').value.trim();
+  const jd       = document.getElementById('jd').value.trim();
   const ctitle   = document.getElementById('ctitle').value.trim();
   const exp      = document.getElementById('exp').value;
   const notable  = document.getElementById('notable').value.trim();
   const sender   = document.getElementById('sender').value.trim();
   const srole    = document.getElementById('srole').value.trim();
+  const scompany = document.getElementById('scompany').value.trim();
  
   const channels = Array.from(selectedChs);
  
@@ -959,6 +976,7 @@ Role details:
 - Location: ${location || 'not specified'}
 - Compensation: ${comp || 'not specified'}
 - What makes this role great: ${hook || 'not specified'}
+${jd ? `- Job Description: ${jd}` : ''}
  
 Candidate details:
 - Name: ${cname}
@@ -969,6 +987,7 @@ Candidate details:
 Sender:
 - Name: ${sender || 'the recruitment team'}
 - Role: ${srole || 'recruiter'}
+- Company: ${scompany || 'not specified'}
  
 Tone: ${tone}
  
@@ -996,7 +1015,7 @@ Write only the requested channels. Respond ONLY with a valid JSON object — no 
     setTimeout(() => resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
  
   } catch (e) {
-    alert('Could not generate messages.\n\nError: ' + e.message + '\n\nCheck that GEMINI_API_KEY is set in your Vercel environment variables.');
+    alert('Could not generate messages.\n\nError: ' + e.message + '\n\nCheck that GROQ_API_KEY is set in your Vercel environment variables.');
     console.error(e);
   }
  
