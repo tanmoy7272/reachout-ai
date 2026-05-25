@@ -386,9 +386,14 @@ textarea { resize: none; line-height: 1.6; }
 .lines-ctrl button:hover:not([disabled]) { color: var(--text); }
 .lines-ctrl button[disabled] { opacity: 0.3; cursor: default; }
 .lines-ctrl .lines-val {
-  min-width: 16px; text-align: center; font-size: 12px; font-weight: 700; color: var(--text);
+  width: 28px; text-align: center; font-size: 12px; font-weight: 700; color: var(--text);
+  background: transparent; border: none; outline: none; padding: 0; cursor: text;
+  -moz-appearance: textfield; appearance: textfield;
 }
+.lines-ctrl .lines-val::-webkit-inner-spin-button,
+.lines-ctrl .lines-val::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .lines-ctrl .lines-label { font-size: 11px; color: var(--muted2); padding: 0 2px; }
+.lines-ctrl.pending { border-color: rgba(124,111,255,0.6); }
 
 .subject-badge {
   display: inline-flex; align-items: center; gap: 8px;
@@ -418,7 +423,7 @@ textarea { resize: none; line-height: 1.6; }
   color: var(--muted2); font-size: 12px; padding: 6px 12px; font-family: 'Manrope', sans-serif;
   cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 5px;
 }
-.regen-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.regen-btn:hover:not(:disabled) { border-color: var(--a); color: var(--a2); }
 .regen-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .msg-box .char-count {
@@ -494,11 +499,11 @@ footer {
 
 /* ─── JD AUTO-FILL ──────────────────────────────── */
 @keyframes autofill-flash {
-  0%   { background: rgba(108,99,255,0.14); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,99,255,0.12); }
+  0%   { background: rgba(108,99,255,0.14); border-color: var(--a); box-shadow: 0 0 0 3px rgba(108,99,255,0.12); }
   100% { background: var(--s2); border-color: var(--border); box-shadow: none; }
 }
 input.autofilled, textarea.autofilled { animation: autofill-flash 2s ease-out forwards; }
-#jd.parsing { border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(108,99,255,0.15) !important; transition: border-color .2s, box-shadow .2s; }
+#jd.parsing { border-color: var(--a) !important; box-shadow: 0 0 0 3px rgba(108,99,255,0.15) !important; transition: border-color .2s, box-shadow .2s; }
 </style>
 </head>
 <body>
@@ -1057,12 +1062,14 @@ async function regenChannel(ch, btn) {
     btn.disabled = true;
     btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="animation:spin .8s linear infinite"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg> …';
   }
+  const regenErrEl = document.getElementById('regenerr-' + ch);
+  if (regenErrEl) regenErrEl.style.display = 'none';
   if (msgBox) { msgBox.style.opacity = '0.4'; msgBox.style.pointerEvents = 'none'; }
   const chJsonKey = [
     ...(isEmail ? ['"subject": "<compelling subject line — max 55 chars>"'] : []),
     `"${ch}": "<fully written message>"`,
   ].join(',\n  ');
-  const regenPrompt = `Generate one recruiter outreach message. Apply all rules at the highest standard — personally researched, human, and specific to this candidate and role.\nDATA MANDATE: Use every detail below proportionally.\nROLE: ${role} at ${company || 'not specified'} · ${location || 'not specified'} · Comp: ${comp || 'not specified'}${hook ? ' · ' + hook : ''}${jd ? '\nJD: ' + jd : ''}\nCANDIDATE: ${cname}${ctitle ? ' · ' + ctitle : ''}${exp ? ' · ' + exp : ''}${notable ? ' · ' + notable : ''}\nSENDER: ${sender || 'the recruiter'}${srole ? ', ' + srole : ''}${scompany ? ' at ' + scompany : ''}\nTONE: ${tone}\nCHANNEL RULE:\n${chRules[ch]}\n  • TARGET LENGTH: write to fill exactly ${chLines[ch] || CH_LINES_DEFAULT[ch]} lines\nOUTPUT — ONLY valid JSON, no markdown, no text outside JSON:\n{\n  ${chJsonKey}\n}`;
+  const regenPrompt = `Generate one recruiter outreach message. Apply all rules at the highest standard — personally researched, human, and specific to this candidate and role.\nDATA MANDATE: Use every detail below proportionally.\nROLE: ${role} at ${company || 'not specified'} · ${location || 'not specified'} · Comp: ${comp || 'not specified'}${hook ? ' · ' + hook : ''}${jd ? '\nJD: ' + jd : ''}\nCANDIDATE: ${cname}${ctitle ? ' · ' + ctitle : ''}${exp ? ' · ' + exp : ''}${notable ? ' · ' + notable : ''}\nSENDER: ${sender || 'the recruiter'}${srole ? ', ' + srole : ''}${scompany ? ' at ' + scompany : ''}\nTONE: ${tone}\nCHANNEL RULE:\n${chRules[ch]}\n  • TARGET LENGTH: approximately ${chLines[ch] || CH_LINES_DEFAULT[ch]} lines — adjust message depth and number of specific points included; NEVER add blank lines or padding to reach this count; preserve the channel’s natural formatting\nOUTPUT — ONLY valid JSON, no markdown, no text outside JSON:\n{\n  ${chJsonKey}\n}`;
   try {
     const res = await fetch('/api/generate', {
       method: 'POST',
@@ -1099,9 +1106,8 @@ async function regenChannel(ch, btn) {
     }
   } catch (e) {
     if (msgBox) { msgBox.style.opacity = '1'; msgBox.style.pointerEvents = ''; }
-    const eb = document.getElementById('errorBanner');
-    eb.innerHTML = `<strong>Regeneration failed</strong> — ${escHtml(e.message)}`;
-    eb.style.display = 'block';
+    const eb = document.getElementById('regenerr-' + ch);
+    if (eb) { eb.innerHTML = `<strong>Regeneration failed</strong> — ${escHtml(e.message)}`; eb.style.display = 'block'; setTimeout(() => { eb.style.display = 'none'; }, 6000); }
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
   }
@@ -1118,13 +1124,13 @@ const CH_META = {
 
 /* ─── PER-CHANNEL LINE TARGETS ─────────────── */
 // Defaults are market-standard lengths for each channel
-const CH_LINES_DEFAULT = { linkedin:14, whatsapp:8, email:18, sms:2, twitter:2 };
+const CH_LINES_DEFAULT = { linkedin:14, whatsapp:8, email:18, sms:3, twitter:3 };
 const CH_LINES_LIMITS  = {
-  linkedin: { min:8,  max:20 },
-  whatsapp: { min:5,  max:14 },
-  email:    { min:12, max:25 },
-  sms:      { min:1,  max:2  },
-  twitter:  { min:1,  max:3  },
+  linkedin: { min:6,  max:35 },
+  whatsapp: { min:4,  max:22 },
+  email:    { min:8,  max:45 },
+  sms:      { min:1,  max:5  },
+  twitter:  { min:1,  max:7  },
 };
 let chLines = { ...CH_LINES_DEFAULT }; // mutated by adjLines()
 let _adjLinesTimers = {};
@@ -1163,9 +1169,9 @@ function buildResultsUI(channels, result) {
           <p>${m.hint}</p>
         </div>
         <div class="action-row">
-          <div class="lines-ctrl" title="Target lines — click +/− to resize &amp; regenerate">
+          <div class="lines-ctrl" title="Target message length — type a number or click +/−. Regenerates automatically after a moment.">
             <button type="button" onclick="adjLines('${ch}',-1)" ${chLines[ch]<=CH_LINES_LIMITS[ch].min?'disabled':''}>−</button>
-            <span class="lines-val" id="linesval-${ch}">${chLines[ch]}</span>
+            <input type="number" class="lines-val" id="linesval-${ch}" value="${chLines[ch]}" min="${CH_LINES_LIMITS[ch].min}" max="${CH_LINES_LIMITS[ch].max}" onchange="setLines('${ch}',this.value)" onkeydown="if(event.key==='Enter'){setLines('${ch}',this.value);this.blur()}" title="Type a number and press Enter">
             <span class="lines-label">lines</span>
             <button type="button" onclick="adjLines('${ch}',1)" ${chLines[ch]>=CH_LINES_LIMITS[ch].max?'disabled':''}>+</button>
           </div>
@@ -1182,6 +1188,7 @@ function buildResultsUI(channels, result) {
       ${isEmail ? `<div class="subject-badge"><span>Subject:</span> <strong id="subject-${ch}">${subject}</strong><button class="copy-btn" style="padding:4px 10px;font-size:11px;margin-left:8px" onclick="copySubject('${ch}',this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy</button></div>` : ''}
       ${(isSms || isTw) ? `<div class="char-badge" id="charbadge-${ch}" style="${overLimit ? 'background:rgba(255,107,107,0.1);border-color:rgba(255,107,107,0.4);color:#FF8A8A' : ''}">${overLimit ? '🔴' : '⚠'} ${charLimit}-char limit · <span id="charcount-${ch}" style="${overLimit ? 'font-weight:700' : ''}">${msg.length} used${overLimit ? ' — exceeds limit' : ''}</span></div>` : ''}
       <textarea class="msg-box" id="msgbox-${ch}" oninput="onMsgEdit('${ch}', this)">${escHtml(msg)}</textarea>
+      <div id="regenerr-${ch}" class="error-banner" style="display:none;margin-top:10px"></div>
     `;
     panelsContainer.appendChild(panel);
     // NOTE: do NOT auto-resize here — results container is still display:none at this point
@@ -1202,25 +1209,28 @@ function switchTab(ch) {
   if (ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
 }
 
-function adjLines(ch, delta) {
+// setLines: single source of truth — called by both manual input and +/− buttons
+function setLines(ch, rawVal) {
   const lim = CH_LINES_LIMITS[ch];
-  chLines[ch] = Math.max(lim.min, Math.min(lim.max, chLines[ch] + delta));
-  const valEl = document.getElementById('linesval-' + ch);
-  if (valEl) valEl.textContent = chLines[ch];
-  // Update +/− disabled state
-  const ctrl = valEl?.closest('.lines-ctrl');
+  const val = Math.max(lim.min, Math.min(lim.max, parseInt(rawVal, 10) || chLines[ch]));
+  chLines[ch] = val;
+  const inp = document.getElementById('linesval-' + ch);
+  if (inp) inp.value = val; // works for <input type=number>
+  const ctrl = inp?.closest('.lines-ctrl');
   if (ctrl) {
     const [btnMinus, btnPlus] = ctrl.querySelectorAll('button');
-    btnMinus.disabled = chLines[ch] <= lim.min;
-    btnPlus.disabled  = chLines[ch] >= lim.max;
+    btnMinus.disabled = val <= lim.min;
+    btnPlus.disabled  = val >= lim.max;
+    ctrl.classList.add('pending'); // accent border shows regen is coming
   }
-  // Debounce regen per channel so rapid clicks only fire once
   clearTimeout(_adjLinesTimers[ch]);
-  _adjLinesTimers[ch] = setTimeout(
-    () => regenChannel(ch, document.getElementById('regenbtn-' + ch)),
-    450
-  );
+  _adjLinesTimers[ch] = setTimeout(() => {
+    if (ctrl) ctrl.classList.remove('pending');
+    regenChannel(ch, document.getElementById('regenbtn-' + ch));
+  }, 500);
 }
+
+function adjLines(ch, delta) { setLines(ch, chLines[ch] + delta); }
 
 /* ─── CHANNEL RULES (module-level) ──── */
 let chRules = {};
@@ -1283,6 +1293,7 @@ async function generate() {
   chRules = {
     linkedin: `LINKEDIN MESSAGE (InMail / connection note):
   • Length: 180–250 words — MUST be at least 180 words; under 150 words is unacceptable
+  • Greeting: the VERY FIRST line must always be "Hi [Candidate first name]," — in the JSON string write this followed immediately by \\n\\n before the anchor paragraph
   • Opening sentence [Anchor]: Start with something specific and verifiable — the candidate's current company by name, their career trajectory, a direct skill or domain match, or an explicit reason they fit this role. NEVER open with "I came across your profile" or any generic compliment. SPARSE DATA FALLBACK: if no current title, company, or notable detail was provided for the candidate, do NOT invent observations — instead anchor the opening on the most specific and compelling characteristic of the ROLE itself (its seniority, exact scope of ownership, compensation level, what the hiring company is building, or the rarity of the position).
   • Sentences 2–4 [Opportunity context]: Name the role title and hiring company explicitly. Share one genuinely compelling detail — scope of impact, team size, reporting structure, product/market stage, or compensation if available. If a job description was provided, reference at least one specific requirement or selling point from it.
   • Sentence 5 [Candidate-role fit]: Draw an explicit, specific connection between this candidate's background and the role. Reference their seniority, a specific skill, or career experience from the data provided.
@@ -1337,7 +1348,7 @@ async function generate() {
   };
 
   const channelRulesBlock = channels.map(ch =>
-    chRules[ch] + `\n  • TARGET LENGTH: write to fill exactly ${chLines[ch]} lines — count each visible text line and each blank separator line toward this total`
+    chRules[ch] + `\n  • TARGET LENGTH: approximately ${chLines[ch]} lines — achieve this by adjusting message depth, detail richness, and number of specific points included; NEVER add blank lines, padding sentences, or filler content to reach the count; natural channel-appropriate formatting must be strictly preserved`
   ).join('\n\n');
 
   const chJsonKeys = [
