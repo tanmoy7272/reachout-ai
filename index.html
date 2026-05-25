@@ -840,7 +840,9 @@ function setStepState(n, hasValue) {
 /* ─── AUTO RESIZE ───────────────────── */
 function autoResize(el) {
   el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 340) + 'px';
+  const h = Math.min(el.scrollHeight, 340);
+  el.style.height = h + 'px';
+  el.style.overflowY = el.scrollHeight > 340 ? 'auto' : 'hidden';
 }
  
 /* ─── COPY ──────────────────────────── */
