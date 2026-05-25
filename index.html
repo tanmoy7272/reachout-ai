@@ -204,6 +204,18 @@ textarea { resize: none; line-height: 1.6; }
   color: var(--muted2); pointer-events: none; font-size: 15px;
 }
 .has-icon input { padding-left: 38px; }
+
+/* ─── CLEAR BUTTON ─────────────────────────────── */
+.clear-btn {
+  position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--muted2); color: var(--bg);
+  border: none; cursor: pointer; padding: 0;
+  display: none; align-items: center; justify-content: center;
+  transition: background .15s, opacity .15s; z-index: 3; flex-shrink: 0;
+}
+.clear-btn:hover { background: var(--a2); }
+.clear-btn-ta { top: 10px; transform: none; }
  
 /* ─── CONTEXT CHIPS ─────────────────────────────── */
 .ctx-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
@@ -541,7 +553,7 @@ input.autofilled, textarea.autofilled { animation: autofill-flash 2s ease-out fo
         <label>Job Title <span class="req">*</span></label>
         <div class="input-wrapper has-icon">
           <span class="input-icon">💼</span>
-          <input id="role" type="text" placeholder="e.g. Senior Product Manager" autocomplete="off" oninput="onInput()"/>
+          <input id="role" type="text" placeholder="e.g. Senior Product Manager" autocomplete="off" oninput="onFieldInput('role')"/>
         </div>
         <span class="error-msg" id="err-role">Please enter the job title</span>
       </div>
@@ -549,14 +561,14 @@ input.autofilled, textarea.autofilled { animation: autofill-flash 2s ease-out fo
         <label>Company / Team Name</label>
         <div class="input-wrapper has-icon">
           <span class="input-icon">🏢</span>
-          <input id="company" type="text" placeholder="e.g. Zomato · Growth Team" autocomplete="off" oninput="onInput()"/>
+          <input id="company" type="text" placeholder="e.g. Zomato · Growth Team" autocomplete="off" oninput="onFieldInput('company')"/>
         </div>
       </div>
       <div class="field">
         <label>Location</label>
         <div class="input-wrapper has-icon">
           <span class="input-icon">📍</span>
-          <input id="location" type="text" placeholder="e.g. Bangalore / Remote" autocomplete="off" oninput="onInput()"/>
+          <input id="location" type="text" placeholder="e.g. Bangalore / Remote" autocomplete="off" oninput="onFieldInput('location')"/>
         </div>
       </div>
       <div class="field">
@@ -566,7 +578,7 @@ input.autofilled, textarea.autofilled { animation: autofill-flash 2s ease-out fo
         </label>
         <div class="input-wrapper has-icon">
           <span class="input-icon">💰</span>
-          <input id="comp" type="text" placeholder="e.g. ₹18–24 LPA · ESOPs" autocomplete="off" oninput="onInput()"/>
+          <input id="comp" type="text" placeholder="e.g. ₹18–24 LPA · ESOPs" autocomplete="off" oninput="onFieldInput('comp')"/>
         </div>
       </div>
 
@@ -575,7 +587,7 @@ input.autofilled, textarea.autofilled { animation: autofill-flash 2s ease-out fo
           What makes this role exciting?
           <span class="label-hint">(optional but makes messages 10× better)</span>
         </label>
-        <textarea id="hook" rows="3" placeholder="e.g. Lead a team of 8, own the product roadmap, work directly with the founder, fast-growing startup, flexible hours…" oninput="onInput()"></textarea>
+        <textarea id="hook" rows="3" placeholder="e.g. Lead a team of 8, own the product roadmap, work directly with the founder, fast-growing startup, flexible hours…" oninput="onFieldInput('hook')"></textarea>
         <div class="ctx-grid" id="hookChips">
           <div class="ctx-chip" onclick="toggleChip(this,'hook')">🚀 Fast growth</div>
           <div class="ctx-chip" onclick="toggleChip(this,'hook')">🏠 Remote / Hybrid</div>
@@ -781,6 +793,37 @@ const loaderMsgs = [
 ];
  
 /* ─── INIT ──────────────────────────── */
+function initClearBtns() {
+  const sel = '#card1 input[type=text],#card1 textarea,#card2 input[type=text],#card3 input[type=text]';
+  document.querySelectorAll(sel).forEach(el => {
+    let wrap = el.parentElement;
+    // Bare inputs/textareas (not in an input-wrapper) get a thin relative wrapper
+    if (!wrap.classList.contains('input-wrapper')) {
+      const div = document.createElement('div');
+      div.style.position = 'relative';
+      el.parentNode.insertBefore(div, el);
+      div.appendChild(el);
+      wrap = div;
+    }
+    const isTA = el.tagName === 'TEXTAREA';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = isTA ? 'clear-btn clear-btn-ta' : 'clear-btn';
+    btn.setAttribute('aria-label', 'Clear field');
+    btn.innerHTML = '<svg width="8" height="8" viewBox="0 0 8 8" fill="none"><line x1="1" y1="1" x2="7" y2="7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="7" y1="1" x2="1" y2="7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+    wrap.appendChild(btn);
+    el.style.paddingRight = '34px'; // keep text from hiding behind ×
+    const sync = () => { btn.style.display = el.value.trim() ? 'flex' : 'none'; };
+    el.addEventListener('input', sync);
+    sync(); // show immediately if pre-filled (e.g. localStorage)
+    btn.addEventListener('click', () => {
+      el.value = '';
+      el.dispatchEvent(new Event('input', { bubbles: true })); // fires oninput handlers
+      el.focus();
+    });
+  });
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   const obs = new IntersectionObserver(els => {
     els.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
@@ -791,6 +834,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (v) document.getElementById(id).value = v;
   });
   updateProgress();
+  initClearBtns(); // after localStorage pre-fill so × shows on pre-filled sender fields
 });
  
 /* ─── TONE ──────────────────────────── */
@@ -868,10 +912,31 @@ function autoResize(el) {
  
 /* ─── JD AUTO-FILL ──────────────────── */
 let _jdParseTimer = null;
+let _jdParseSeq   = 0;
+let autoFilledFields = new Set(); // fields filled by parse (not manually typed)
+
+function onFieldInput(id) {
+  // User touched the field manually — it is now 'owned' and should not be overwritten
+  autoFilledFields.delete(id);
+  onInput();
+}
+
 function jdAutoFill() {
   clearTimeout(_jdParseTimer);
   const jd = document.getElementById('jd').value.trim();
-  if (jd.length < 80) return;
+  // If JD is cleared, wipe only fields that are still tagged as auto-filled
+  if (jd.length < 80) {
+    if (jd.length === 0 && autoFilledFields.size > 0) {
+      for (const id of autoFilledFields) {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      }
+      autoFilledFields.clear();
+      onInput();
+    }
+    return;
+  }
+  const seq = ++_jdParseSeq; // snapshot — used to discard stale responses
   _jdParseTimer = setTimeout(async () => {
     const jdEl = document.getElementById('jd');
     jdEl.classList.add('parsing');
@@ -881,6 +946,7 @@ function jdAutoFill() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jd }),
       });
+      if (seq !== _jdParseSeq) return; // a newer parse is already in flight — discard
       const data = await res.json();
       if (!data.result) return;
       let filled = 0;
@@ -888,8 +954,10 @@ function jdAutoFill() {
         const val = data.result[id];
         if (val && typeof val === 'string' && val.trim()) {
           const el = document.getElementById(id);
-          if (el && !el.value.trim()) {
+          // Fill if: field is empty  OR  field was previously auto-filled (not manually edited)
+          if (el && (!el.value.trim() || autoFilledFields.has(id))) {
             el.value = val.trim();
+            autoFilledFields.add(id);
             el.classList.add('autofilled');
             setTimeout(() => el.classList.remove('autofilled'), 2200);
             filled++;
@@ -898,7 +966,7 @@ function jdAutoFill() {
       }
       if (filled > 0) onInput();
     } catch (_) { /* silent — JD still usable */ } finally {
-      jdEl.classList.remove('parsing');
+      if (seq === _jdParseSeq) jdEl.classList.remove('parsing');
     }
   }, 900);
 }
