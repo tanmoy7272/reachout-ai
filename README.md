@@ -4,12 +4,26 @@ AI-powered recruiter outreach generator — craft personalised LinkedIn, WhatsAp
 
 ---
 
+## Features
+
+- **5 channels** — LinkedIn InMail, WhatsApp, Email (with subject), SMS, Twitter/X DM
+- **JD auto-fill** — paste a job description and role, company, location, comp, and hook fields populate automatically
+- **Inline editing** — every generated message is editable directly in the results panel; copy always reflects your edits
+- **Per-channel regenerate** — not happy with one message? Hit ↻ Regenerate on just that channel without touching the others
+- **Live character count** — SMS (155 char limit) and Twitter (270 char limit) badges update in real-time as you edit; turns red if you exceed the limit
+- **Sender info persistence** — your name, role, and company are saved to `localStorage` and pre-filled on every visit
+- **Tone selector** — Friendly, Professional, Bold, or Direct
+- **No build step** — entire frontend is a single `index.html`
+
+---
+
 ## File structure
 
 ```
 reachout-ai/
 ├── api/
-│   └── generate.js    ← Vercel serverless function (keeps API key secret)
+│   ├── generate.js    ← Vercel serverless function — generates all channel messages
+│   └── parse.js       ← Vercel serverless function — extracts fields from pasted JD
 ├── index.html         ← entire frontend (single file, no build step)
 ├── vercel.json        ← routing config
 ├── package.json       ← Node ≥18 requirement
@@ -62,14 +76,19 @@ Your live URL will be something like: `https://reachout-ai.vercel.app` 🎉
 ```
 Browser  →  POST /api/generate  →  Vercel Function  →  Groq API (llama-3.3-70b-versatile)
                                          ↓
-Browser  ←  { result: { linkedin, whatsapp, email, ... } }
+Browser  ←  { result: { linkedin, whatsapp, email, sms, twitter, subject } }
+
+Browser  →  POST /api/parse  →  Vercel Function  →  Groq API (field extraction, low-temp)
+                                    ↓
+Browser  ←  { result: { role, company, location, comp, hook } }
 ```
 
-1. User fills in role, candidate, sender details + optional JD paste
-2. Frontend builds a structured prompt and POSTs to `/api/generate`
-3. The serverless function forwards the prompt to Groq (API key stays server-side)
-4. Groq returns a JSON object with one message per selected channel
-5. Frontend renders tabbed results with copy buttons
+1. User pastes a JD → `/api/parse` extracts fields and auto-fills the form (900 ms debounce)
+2. User fills in candidate and sender details, picks tone and channels
+3. Frontend builds a structured prompt and POSTs to `/api/generate`
+4. The serverless function forwards the prompt to Groq (API key stays server-side)
+5. Groq returns a JSON object with one message per selected channel
+6. Frontend renders tabbed results — each message is editable, with a Regenerate button per channel
 
 ---
 

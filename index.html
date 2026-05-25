@@ -384,9 +384,18 @@ textarea { resize: none; line-height: 1.6; }
 .msg-box {
   background: var(--s2); border: 1px solid var(--border); border-radius: var(--r2);
   padding: 22px; font-size: 14.5px; color: var(--text); line-height: 1.85;
-  white-space: pre-wrap; font-weight: 400; min-height: 110px;
+  font-weight: 400; min-height: 110px; width: 100%; box-sizing: border-box;
+  resize: none; overflow: hidden; font-family: 'Manrope', sans-serif;
   position: relative;
 }
+.regen-btn {
+  background: transparent; border: 1px solid var(--border); border-radius: 8px;
+  color: var(--muted2); font-size: 12px; padding: 6px 12px; font-family: 'Manrope', sans-serif;
+  cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 5px;
+}
+.regen-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.regen-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .msg-box .char-count {
   position: absolute; bottom: 12px; right: 14px;
   font-size: 11px; color: var(--muted2); font-weight: 500;
@@ -457,6 +466,14 @@ footer {
   background: rgba(255,107,107,0.08); border: 1px solid rgba(255,107,107,0.3);
   border-radius: var(--r); color: #FF8A8A; font-size: 13px; line-height: 1.6;
 }
+
+/* ─── JD AUTO-FILL ──────────────────────────────── */
+@keyframes autofill-flash {
+  0%   { background: rgba(108,99,255,0.14); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,99,255,0.12); }
+  100% { background: var(--s2); border-color: var(--border); box-shadow: none; }
+}
+input.autofilled, textarea.autofilled { animation: autofill-flash 2s ease-out forwards; }
+#jd.parsing { border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(108,99,255,0.15) !important; transition: border-color .2s, box-shadow .2s; }
 </style>
 </head>
 <body>
@@ -512,6 +529,14 @@ footer {
     </div>
  
     <div class="field-grid">
+      <div class="field field-full">
+        <label>
+          Job Description
+          <span class="label-hint">(optional — paste to auto-fill fields below)</span>
+        </label>
+        <textarea id="jd" rows="4" placeholder="Paste the JD here and the fields below will fill themselves. Or skip this and fill manually." oninput="autoResize(this);onInput();jdAutoFill()" style="overflow:hidden"></textarea>
+      </div>
+
       <div class="field">
         <label>Job Title <span class="req">*</span></label>
         <div class="input-wrapper has-icon">
@@ -543,14 +568,6 @@ footer {
           <span class="input-icon">💰</span>
           <input id="comp" type="text" placeholder="e.g. ₹18–24 LPA · ESOPs" autocomplete="off" oninput="onInput()"/>
         </div>
-      </div>
- 
-      <div class="field field-full">
-        <label>
-          Job Description
-          <span class="label-hint">(optional — paste JD for best results)</span>
-        </label>
-        <textarea id="jd" rows="4" placeholder="Paste the job description here (or key requirements). This helps craft highly targeted messages." oninput="autoResize(this);onInput()" style="overflow:hidden"></textarea>
       </div>
 
       <div class="field field-full">
@@ -769,6 +786,10 @@ window.addEventListener('DOMContentLoaded', () => {
     els.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
   }, { threshold: 0.1 });
   document.querySelectorAll('.fade-up').forEach(el => obs.observe(el));
+  ['sender','srole','scompany'].forEach(id => {
+    const v = localStorage.getItem('ra_' + id);
+    if (v) document.getElementById(id).value = v;
+  });
   updateProgress();
 });
  
@@ -845,6 +866,43 @@ function autoResize(el) {
   el.style.overflowY = el.scrollHeight > 340 ? 'auto' : 'hidden';
 }
  
+/* ─── JD AUTO-FILL ──────────────────── */
+let _jdParseTimer = null;
+function jdAutoFill() {
+  clearTimeout(_jdParseTimer);
+  const jd = document.getElementById('jd').value.trim();
+  if (jd.length < 80) return;
+  _jdParseTimer = setTimeout(async () => {
+    const jdEl = document.getElementById('jd');
+    jdEl.classList.add('parsing');
+    try {
+      const res = await fetch('/api/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jd }),
+      });
+      const data = await res.json();
+      if (!data.result) return;
+      let filled = 0;
+      for (const id of ['role', 'company', 'location', 'comp', 'hook']) {
+        const val = data.result[id];
+        if (val && typeof val === 'string' && val.trim()) {
+          const el = document.getElementById(id);
+          if (el && !el.value.trim()) {
+            el.value = val.trim();
+            el.classList.add('autofilled');
+            setTimeout(() => el.classList.remove('autofilled'), 2200);
+            filled++;
+          }
+        }
+      }
+      if (filled > 0) onInput();
+    } catch (_) { /* silent — JD still usable */ } finally {
+      jdEl.classList.remove('parsing');
+    }
+  }, 900);
+}
+ 
 /* ─── COPY ──────────────────────────── */
 function copyMsg(ch, btn) {
   const text = generatedMsgs[ch] || '';
@@ -868,6 +926,99 @@ function copySubject(ch, btn) {
       btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy';
     }, 2000);
   });
+}
+ 
+/* ─── REGEN & EDIT ──────────────────── */
+function onMsgEdit(ch, el) {
+  generatedMsgs[ch] = el.value;
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+  const isSms = ch === 'sms', isTw = ch === 'twitter';
+  if (isSms || isTw) {
+    const charLimit = isSms ? 155 : 270;
+    const len = el.value.length;
+    const over = len > charLimit;
+    const badge = document.getElementById('charbadge-' + ch);
+    if (badge) {
+      badge.style.background = over ? 'rgba(255,107,107,0.1)' : '';
+      badge.style.borderColor = over ? 'rgba(255,107,107,0.4)' : '';
+      badge.style.color = over ? '#FF8A8A' : '';
+      badge.innerHTML = `${over ? '🔴' : '⚠'} ${charLimit}-char limit · <span id="charcount-${ch}" style="${over ? 'font-weight:700' : ''}">${len} used${over ? ' — exceeds limit' : ''}</span>`;
+    }
+  }
+}
+ 
+async function regenChannel(ch, btn) {
+  const role     = document.getElementById('role').value.trim();
+  const cname    = document.getElementById('cname').value.trim();
+  if (!role || !cname) { alert('Role and Candidate Name are required to regenerate.'); return; }
+  const company  = document.getElementById('company').value.trim();
+  const location = document.getElementById('location').value.trim();
+  const comp     = document.getElementById('comp').value.trim();
+  const hook     = document.getElementById('hook').value.trim();
+  const jdRaw    = document.getElementById('jd').value.trim();
+  const jd       = jdRaw.length > 800 ? jdRaw.slice(0, 800) + '… [truncated]' : jdRaw;
+  const ctitle   = document.getElementById('ctitle').value.trim();
+  const exp      = document.getElementById('exp').value;
+  const notable  = document.getElementById('notable').value.trim();
+  const sender   = document.getElementById('sender').value.trim();
+  const srole    = document.getElementById('srole').value.trim();
+  const scompany = document.getElementById('scompany').value.trim();
+  const msgBox   = document.getElementById('msgbox-' + ch);
+  const isEmail  = ch === 'email';
+  const origHTML = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="animation:spin .8s linear infinite"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg> …';
+  }
+  if (msgBox) { msgBox.style.opacity = '0.4'; msgBox.style.pointerEvents = 'none'; }
+  const chJsonKey = [
+    ...(isEmail ? ['"subject": "<compelling subject line — max 55 chars>"'] : []),
+    `"${ch}": "<fully written message>"`,
+  ].join(',\n  ');
+  const regenPrompt = `Generate one recruiter outreach message. Apply all rules at the highest standard — personally researched, human, and specific to this candidate and role.\nDATA MANDATE: Use every detail below proportionally.\nROLE: ${role} at ${company || 'not specified'} · ${location || 'not specified'} · Comp: ${comp || 'not specified'}${hook ? ' · ' + hook : ''}${jd ? '\nJD: ' + jd : ''}\nCANDIDATE: ${cname}${ctitle ? ' · ' + ctitle : ''}${exp ? ' · ' + exp : ''}${notable ? ' · ' + notable : ''}\nSENDER: ${sender || 'the recruiter'}${srole ? ', ' + srole : ''}${scompany ? ' at ' + scompany : ''}\nTONE: ${tone}\nCHANNEL RULE:\n${chRules[ch]}\nOUTPUT — ONLY valid JSON, no markdown, no text outside JSON:\n{\n  ${chJsonKey}\n}`;
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: regenPrompt }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const newMsg = data.result[ch] || '';
+    generatedMsgs[ch] = newMsg;
+    if (msgBox) {
+      msgBox.value = newMsg;
+      msgBox.style.height = 'auto';
+      msgBox.style.height = msgBox.scrollHeight + 'px';
+      msgBox.style.opacity = '1';
+      msgBox.style.pointerEvents = '';
+    }
+    if (isEmail && data.result.subject) {
+      const subjEl = document.getElementById('subject-' + ch);
+      if (subjEl) subjEl.textContent = data.result.subject;
+    }
+    const isSms = ch === 'sms', isTw = ch === 'twitter';
+    if (isSms || isTw) {
+      const charLimit = isSms ? 155 : 270;
+      const len = newMsg.length;
+      const over = len > charLimit;
+      const badge = document.getElementById('charbadge-' + ch);
+      if (badge) {
+        badge.style.background = over ? 'rgba(255,107,107,0.1)' : '';
+        badge.style.borderColor = over ? 'rgba(255,107,107,0.4)' : '';
+        badge.style.color = over ? '#FF8A8A' : '';
+        badge.innerHTML = `${over ? '🔴' : '⚠'} ${charLimit}-char limit · <span id="charcount-${ch}" style="${over ? 'font-weight:700' : ''}">${len} used${over ? ' — exceeds limit' : ''}</span>`;
+      }
+    }
+  } catch (e) {
+    if (msgBox) { msgBox.style.opacity = '1'; msgBox.style.pointerEvents = ''; }
+    const eb = document.getElementById('errorBanner');
+    eb.innerHTML = `<strong>Regeneration failed</strong> — ${escHtml(e.message)}`;
+    eb.style.display = 'block';
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
+  }
 }
  
 /* ─── TABS ──────────────────────────── */
@@ -913,6 +1064,10 @@ function buildResultsUI(channels, result) {
           <p>${m.hint}</p>
         </div>
         <div class="action-row">
+          <button class="regen-btn" id="regenbtn-${ch}" onclick="regenChannel('${ch}', this)" title="Regenerate this message">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+            Regenerate
+          </button>
           <button class="copy-btn" id="copybtn-${ch}" onclick="copyMsg('${ch}', this)">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
             Copy
@@ -920,10 +1075,12 @@ function buildResultsUI(channels, result) {
         </div>
       </div>
       ${isEmail ? `<div class="subject-badge"><span>Subject:</span> <strong id="subject-${ch}">${subject}</strong><button class="copy-btn" style="padding:4px 10px;font-size:11px;margin-left:8px" onclick="copySubject('${ch}',this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy</button></div>` : ''}
-      ${(isSms || isTw) ? `<div class="char-badge" style="${overLimit ? 'background:rgba(255,107,107,0.1);border-color:rgba(255,107,107,0.4);color:#FF8A8A' : ''}">${overLimit ? '🔴' : '⚠'} ${charLimit}-char limit · <span id="charcount-${ch}" style="${overLimit ? 'font-weight:700' : ''}">${msg.length} used${overLimit ? ' — exceeds limit' : ''}</span></div>` : ''}
-      <div class="msg-box" id="msgbox-${ch}">${escHtml(msg)}</div>
+      ${(isSms || isTw) ? `<div class="char-badge" id="charbadge-${ch}" style="${overLimit ? 'background:rgba(255,107,107,0.1);border-color:rgba(255,107,107,0.4);color:#FF8A8A' : ''}">${overLimit ? '🔴' : '⚠'} ${charLimit}-char limit · <span id="charcount-${ch}" style="${overLimit ? 'font-weight:700' : ''}">${msg.length} used${overLimit ? ' — exceeds limit' : ''}</span></div>` : ''}
+      <textarea class="msg-box" id="msgbox-${ch}" oninput="onMsgEdit('${ch}', this)">${escHtml(msg)}</textarea>
     `;
     panelsContainer.appendChild(panel);
+    const ta = panel.querySelector('textarea.msg-box');
+    if (ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
   });
 }
  
@@ -935,6 +1092,9 @@ function switchTab(ch) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === ch));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + ch));
 }
+ 
+/* ─── CHANNEL RULES (module-level) ──── */
+let chRules = {};
  
 /* ─── GENERATE ──────────────────────── */
 async function generate() {
@@ -991,7 +1151,7 @@ async function generate() {
   }, 1200);
  
   // ─── CHANNEL RULES & PROMPT BUILD ──────────────────────
-  const chRules = {
+  chRules = {
     linkedin: `LINKEDIN MESSAGE (InMail / connection note):
   • Length: 180–250 words — MUST be at least 180 words; under 150 words is unacceptable
   • Opening sentence [Anchor]: Start with something specific and verifiable — the candidate's current company by name, their career trajectory, a direct skill or domain match, or an explicit reason they fit this role. NEVER open with "I came across your profile" or any generic compliment. SPARSE DATA FALLBACK: if no current title, company, or notable detail was provided for the candidate, do NOT invent observations — instead anchor the opening on the most specific and compelling characteristic of the ROLE itself (its seniority, exact scope of ownership, compensation level, what the hiring company is building, or the rarity of the position).
@@ -1095,6 +1255,10 @@ OUTPUT — respond with ONLY a valid JSON object. No markdown. No backticks. No 
     if (data.error) throw new Error(data.error);
  
     const result = data.result;
+    ['sender','srole','scompany'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el?.value.trim()) localStorage.setItem('ra_' + id, el.value.trim());
+    });
  
     buildResultsUI(channels, result);
  
