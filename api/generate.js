@@ -52,6 +52,7 @@ Non-negotiable rules you never break:
         ],
         temperature: 0.76,
         max_tokens: 3500,
+        response_format: { type: 'json_object' },
       }),
     });
 

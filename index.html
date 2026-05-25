@@ -215,7 +215,8 @@ textarea { resize: none; line-height: 1.6; }
   transition: background .15s, opacity .15s; z-index: 3; flex-shrink: 0;
 }
 .clear-btn:hover { background: var(--a2); }
-.clear-btn-ta { top: 10px; transform: none; }
+/* textareas: top-right, offset 26px from edge so it never sits on top of the scrollbar */
+.clear-btn-ta { top: 10px; right: 26px; transform: none; }
  
 /* ─── CONTEXT CHIPS ─────────────────────────────── */
 .ctx-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
@@ -793,6 +794,8 @@ const loaderMsgs = [
 ];
  
 /* ─── INIT ──────────────────────────── */
+let clearSyncs = {}; // id → sync fn, called by any code that sets .value directly
+
 function initClearBtns() {
   const sel = '#card1 input[type=text],#card1 textarea,#card2 input[type=text],#card3 input[type=text]';
   document.querySelectorAll(sel).forEach(el => {
@@ -815,6 +818,7 @@ function initClearBtns() {
     el.style.paddingRight = '34px'; // keep text from hiding behind ×
     const sync = () => { btn.style.display = el.value.trim() ? 'flex' : 'none'; };
     el.addEventListener('input', sync);
+    if (el.id) clearSyncs[el.id] = sync; // expose for programmatic value changes
     sync(); // show immediately if pre-filled (e.g. localStorage)
     btn.addEventListener('click', () => {
       el.value = '';
@@ -863,6 +867,7 @@ function updateTextareaFromChips() {
   const ta = document.getElementById('hook');
   const existing = ta.value.split('\n').filter(l => !l.match(/^[\s\S]*?·/)).join('\n').trim();
   ta.value = (existing ? existing + '\n' : '') + (vals.length ? '· ' + vals.join(' · ') : '');
+  clearSyncs['hook']?.(); // chips set .value directly — sync × visibility
   onInput();
 }
  
@@ -958,6 +963,7 @@ function jdAutoFill() {
           if (el && (!el.value.trim() || autoFilledFields.has(id))) {
             el.value = val.trim();
             autoFilledFields.add(id);
+            clearSyncs[id]?.(); // update × visibility — no input event fires on programmatic set
             el.classList.add('autofilled');
             setTimeout(() => el.classList.remove('autofilled'), 2200);
             filled++;

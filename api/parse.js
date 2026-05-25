@@ -11,7 +11,9 @@ export default async function handler(req, res) {
   const API_KEY = process.env.GROQ_API_KEY;
   if (!API_KEY) return res.status(500).json({ error: 'API not configured' });
 
-  const MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  // Use a dedicated fast model for extraction — 8b-instant is sufficient for structured field
+  // extraction and responds ~6× faster than 70b. Override via GROQ_PARSE_MODEL if needed.
+  const MODEL = process.env.GROQ_PARSE_MODEL || 'llama-3.1-8b-instant';
   const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
   try {
@@ -40,7 +42,7 @@ Fields:
 - hook: one concise sentence, max 20 words, capturing the single most compelling thing about this role (scope, ownership, team size, growth) — null if nothing stands out clearly
 
 Job description:
-${jd.slice(0, 1200)}
+${jd.slice(0, 2000)}
 
 Respond ONLY with this JSON (no other text):
 {"role":...,"company":...,"location":...,"comp":...,"hook":...}`,
@@ -48,6 +50,7 @@ Respond ONLY with this JSON (no other text):
         ],
         temperature: 0.1,
         max_tokens: 250,
+        response_format: { type: 'json_object' },
       }),
     });
 
