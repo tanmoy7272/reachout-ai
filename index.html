@@ -393,7 +393,6 @@ textarea { resize: none; line-height: 1.6; }
 .lines-ctrl .lines-val::-webkit-inner-spin-button,
 .lines-ctrl .lines-val::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .lines-ctrl .lines-label { font-size: 11px; color: var(--muted2); padding: 0 2px; }
-.lines-ctrl.pending { border-color: rgba(124,111,255,0.6); }
 
 .subject-badge {
   display: inline-flex; align-items: center; gap: 8px;
@@ -997,26 +996,22 @@ function jdAutoFill() {
 /* ─── COPY ──────────────────────────── */
 function copyMsg(ch, btn) {
   const text = generatedMsgs[ch] || '';
+  const origHTML = btn.innerHTML;
   navigator.clipboard.writeText(text).then(() => {
     btn.classList.add('done');
     btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Copied!`;
-    setTimeout(() => {
-      btn.classList.remove('done');
-      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy`;
-    }, 2000);
-  });
+    setTimeout(() => { btn.classList.remove('done'); btn.innerHTML = origHTML; }, 2000);
+  }).catch(() => { btn.innerHTML = origHTML; });
 }
  
 function copySubject(ch, btn) {
   const text = document.getElementById('subject-' + ch)?.textContent || '';
+  const origHTML = btn.innerHTML;
   navigator.clipboard.writeText(text).then(() => {
     btn.classList.add('done');
     btn.textContent = '\u2713 Copied';
-    setTimeout(() => {
-      btn.classList.remove('done');
-      btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy';
-    }, 2000);
-  });
+    setTimeout(() => { btn.classList.remove('done'); btn.innerHTML = origHTML; }, 2000);
+  }).catch(() => { btn.innerHTML = origHTML; });
 }
  
 /* ─── REGEN & EDIT ──────────────────── */
@@ -1079,6 +1074,7 @@ async function regenChannel(ch, btn) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: regenPrompt }),
     });
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     const newMsg = data.result[ch] || '';
@@ -1126,7 +1122,7 @@ const CH_META = {
 };
 
 /* ─── PER-CHANNEL LINE TARGETS ─────────────── */
-const CH_LINES_DEFAULT = { linkedin:10, whatsapp:5, email:15, sms:3, twitter:3 };
+const CH_LINES_DEFAULT = { linkedin:6, whatsapp:3, email:10, sms:3, twitter:3 };
 // words-per-line multiplier: converts lines-UI value → word-count target for the model
 const CH_WORDS_PER_LINE = { linkedin:13, whatsapp:11, email:14 };
 const CH_LINES_LIMITS  = {
@@ -1137,7 +1133,6 @@ const CH_LINES_LIMITS  = {
   twitter:  { min:1,  max:7  },
 };
 let chLines = { ...CH_LINES_DEFAULT };
-let _adjLinesTimers = {};
 
 function buildResultsUI(channels, result) {
   const tabsBar = document.getElementById('tabsBar');
@@ -1173,7 +1168,7 @@ function buildResultsUI(channels, result) {
           <p>${m.hint}</p>
         </div>
         <div class="action-row">
-          ${(ch !== 'sms' && ch !== 'twitter') ? `<div class="lines-ctrl" title="Target message length — type a number or click +/−. Regenerates automatically after a moment.">
+          ${(ch !== 'sms' && ch !== 'twitter') ? `<div class="lines-ctrl" title="Adjust target length — then click Regenerate to apply">
             <button type="button" onclick="adjLines('${ch}',-1)" ${chLines[ch]<=CH_LINES_LIMITS[ch].min?'disabled':''}>−</button>
             <input type="number" class="lines-val" id="linesval-${ch}" value="${chLines[ch]}" min="${CH_LINES_LIMITS[ch].min}" max="${CH_LINES_LIMITS[ch].max}" onchange="setLines('${ch}',this.value)" onkeydown="if(event.key==='Enter'){setLines('${ch}',this.value);this.blur()}" title="Type a number and press Enter">
             <span class="lines-label">lines</span>
@@ -1214,25 +1209,20 @@ function switchTab(ch) {
 }
 
 // setLines: single source of truth — called by both manual input and +/− buttons
+// NOTE: only updates the count and UI; regen must be triggered manually via the Regenerate button
 function setLines(ch, rawVal) {
   const lim = CH_LINES_LIMITS[ch];
   const val = Math.max(lim.min, Math.min(lim.max, parseInt(rawVal, 10) || chLines[ch]));
   const inp = document.getElementById('linesval-' + ch);
-  if (inp) inp.value = val; // always reset display (corrects out-of-range typed values)
-  if (val === chLines[ch]) return; // no change — skip regen (prevents spurious regen at limits)
+  if (inp) inp.value = val;
+  if (val === chLines[ch]) return;
   chLines[ch] = val;
   const ctrl = inp ? inp.closest('.lines-ctrl') : null;
   if (ctrl) {
     const [btnMinus, btnPlus] = ctrl.querySelectorAll('button');
     btnMinus.disabled = val <= lim.min;
     btnPlus.disabled  = val >= lim.max;
-    ctrl.classList.add('pending');
   }
-  clearTimeout(_adjLinesTimers[ch]);
-  _adjLinesTimers[ch] = setTimeout(() => {
-    if (ctrl) ctrl.classList.remove('pending');
-    regenChannel(ch, document.getElementById('regenbtn-' + ch));
-  }, 500);
 }
 
 function adjLines(ch, delta) { setLines(ch, chLines[ch] + delta); }
@@ -1403,6 +1393,7 @@ OUTPUT — respond with ONLY a valid JSON object. No markdown. No backticks. No 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt }),
     });
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
  
