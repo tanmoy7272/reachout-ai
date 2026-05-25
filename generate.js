@@ -8,8 +8,16 @@ export default async function handler(req, res) {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
  
-  const API_KEY = process.env.GROQ_API_KEY;
-  if (!API_KEY) {
+  // Collect all configured keys: GROQ_API_KEY, GROQ_API_KEY_2 … GROQ_API_KEY_5
+  const keys = [
+    process.env.GROQ_API_KEY,
+    process.env.GROQ_API_KEY_2,
+    process.env.GROQ_API_KEY_3,
+    process.env.GROQ_API_KEY_4,
+    process.env.GROQ_API_KEY_5,
+  ].filter(Boolean);
+
+  if (keys.length === 0) {
     return res.status(500).json({
       error: 'API not configured. Set GROQ_API_KEY in Vercel environment variables.'
     });
@@ -18,19 +26,12 @@ export default async function handler(req, res) {
   const MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
   const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          {
-            role: 'system',
-            content: `You are a world-class senior talent acquisition professional and recruitment copywriter with 20 years of experience placing top talent across every industry. Your outreach messages are studied by other recruiters because they consistently get replies — not because they follow templates, but because each one feels genuinely researched, human, and directly relevant to the exact person receiving it.
+  const reqBody = JSON.stringify({
+    model: MODEL,
+    messages: [
+      {
+        role: 'system',
+        content: `You are a world-class senior talent acquisition professional and recruitment copywriter with 20 years of experience placing top talent across every industry. Your outreach messages are studied by other recruiters because they consistently get replies — not because they follow templates, but because each one feels genuinely researched, human, and directly relevant to the exact person receiving it.
 
 Your output standard: every message must feel like it was written by someone who spent time specifically researching this candidate for this role. If a message could apply to any other candidate or any other role without modification, it has failed and must be rewritten.
 
@@ -47,37 +48,61 @@ Non-negotiable rules you never break:
 10. Never include placeholder text like [Company Name] or [Role] in final output — every field must be filled with actual content from the provided context
 11. NEVER fabricate context — do not claim to have "been researching professionals in the field", "noticed" something, or been "impressed by" something that was not present in the provided data; invented context is worse than saying nothing and will always be detected as insincere
 12. Sparse candidate data strategy — when no current title, company, or notable detail is provided for the candidate, DO NOT default to hollow praise or invented observations; instead anchor the opening on the most specific and compelling characteristic of the ROLE itself — its seniority, exact scope of ownership, compensation level, what the company is actively building, or the rarity of the opening`,
-          },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.76,
-        max_tokens: 3500,
-        response_format: { type: 'json_object' },
-      }),
-    });
+      },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.76,
+    max_tokens: 3500,
+    response_format: { type: 'json_object' },
+  });
 
-    if (!response.ok) {
-      const err = await response.text();
-      console.error('Groq API error:', err);
-      return res.status(502).json({ error: 'Groq API returned an error', details: err });
-    }
+  let lastError = 'Unknown error';
 
-    const data = await response.json();
-    const raw = data.choices?.[0]?.message?.content || '';
-    const clean = raw.replace(/```json|```/g, '').trim();
-
-    let result;
+  for (let i = 0; i < keys.length; i++) {
     try {
-      result = JSON.parse(clean);
-    } catch {
-      const match = clean.match(/\{[\s\S]*\}/);
-      if (match) result = JSON.parse(match[0]);
-      else return res.status(500).json({ error: 'Model did not return valid JSON', raw });
-    }
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${keys[i]}` },
+        body: reqBody,
+      });
 
-    return res.status(200).json({ result });
-  } catch (err) {
-    console.error('Server error:', err);
-    return res.status(500).json({ error: err.message });
+      if (!response.ok) {
+        const errText = await response.text();
+        lastError = `key ${i + 1} — HTTP ${response.status}`;
+        console.warn(`Groq key ${i + 1}/${keys.length} failed (${response.status})${i + 1 < keys.length ? ' — trying next' : ''}`);
+        if (response.status === 400) {
+          // Bad request — prompt issue, retrying with another key won't help
+          return res.status(400).json({ error: 'Bad request to Groq API', details: errText });
+        }
+        continue; // 401 invalid key, 429 rate limit, 5xx server error → try next key
+      }
+
+      const data = await response.json();
+      const raw = data.choices?.[0]?.message?.content || '';
+      const clean = raw.replace(/```json|```/g, '').trim();
+
+      let result;
+      try {
+        result = JSON.parse(clean);
+      } catch {
+        const match = clean.match(/\{[\s\S]*\}/);
+        if (match) result = JSON.parse(match[0]);
+        else return res.status(500).json({ error: 'Model did not return valid JSON', raw });
+      }
+
+      if (i > 0) console.log(`Groq key ${i + 1} succeeded after ${i} failure(s).`);
+      return res.status(200).json({ result });
+
+    } catch (err) {
+      lastError = `key ${i + 1} — ${err.message}`;
+      console.warn(`Groq key ${i + 1}/${keys.length} network error: ${err.message}`);
+      // Network failure — continue to next key
+    }
   }
+
+  // All keys exhausted
+  console.error(`All ${keys.length} Groq key(s) failed. Last error: ${lastError}`);
+  return res.status(502).json({
+    error: `Generation failed — all ${keys.length} API key(s) exhausted. Last: ${lastError}`,
+  });
 }

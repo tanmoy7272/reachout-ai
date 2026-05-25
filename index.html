@@ -854,6 +854,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (v) document.getElementById(id).value = v;
   });
   updateProgress();
+  updateStepIndicators();
   initClearBtns(); // after localStorage pre-fill so × shows on pre-filled sender fields
 });
  
@@ -1114,11 +1115,11 @@ async function regenChannel(ch, btn) {
  
 /* ─── TABS ──────────────────────────── */
 const CH_META = {
-  linkedin: { label:'LinkedIn',   dot:'#0A66C2', hint:'InMail / connection note · Direct & personal', icon:'in' },
-  whatsapp: { label:'WhatsApp',   dot:'#25D366', hint:'Conversational · Short & human · Chat-style', icon:'W' },
+  linkedin: { label:'LinkedIn',   dot:'#0A66C2', hint:'InMail / connection note · Direct &amp; personal', icon:'in' },
+  whatsapp: { label:'WhatsApp',   dot:'#25D366', hint:'Conversational · Short &amp; human · Chat-style', icon:'W' },
   email:    { label:'Email',      dot:'#EA4335', hint:'Full recruiter email with subject · Structured', icon:'@' },
   sms:      { label:'SMS',        dot:'#FF9F0A', hint:'Max 155 chars · Substantive hook · Clear CTA', icon:'SMS' },
-  twitter:  { label:'X / Twitter',dot:'#1DA1F2', hint:'DM · Max 270 chars · Specific & direct', icon:'𝕏' },
+  twitter:  { label:'X / Twitter',dot:'#1DA1F2', hint:'DM · Max 270 chars · Specific &amp; direct', icon:'𝕏' },
 };
 
 /* ─── PER-CHANNEL LINE TARGETS ─────────────── */
