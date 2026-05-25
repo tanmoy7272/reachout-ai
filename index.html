@@ -1184,8 +1184,9 @@ function buildResultsUI(channels, result) {
       <textarea class="msg-box" id="msgbox-${ch}" oninput="onMsgEdit('${ch}', this)">${escHtml(msg)}</textarea>
     `;
     panelsContainer.appendChild(panel);
-    const ta = panel.querySelector('textarea.msg-box');
-    if (ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+    // NOTE: do NOT auto-resize here — results container is still display:none at this point
+    // so scrollHeight returns 0. Resize happens in the requestAnimationFrame below (first tab)
+    // and in switchTab() for all subsequent tabs.
   });
 }
  
@@ -1196,6 +1197,9 @@ function escHtml(str) {
 function switchTab(ch) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === ch));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + ch));
+  // Resize textarea now that this panel is visible (was display:none before)
+  const ta = document.querySelector('#panel-' + ch + ' textarea.msg-box');
+  if (ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
 }
 
 function adjLines(ch, delta) {
@@ -1395,8 +1399,14 @@ OUTPUT — respond with ONLY a valid JSON object. No markdown. No backticks. No 
  
     const resultsEl = document.getElementById('results');
     resultsEl.classList.add('show');
+    // rAF fires after the browser has laid out the now-visible container—
+    // safe to read scrollHeight and resize the first (active) panel's textarea
+    requestAnimationFrame(() => {
+      const ta = document.querySelector('.panel.active textarea.msg-box');
+      if (ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+    });
     setTimeout(() => resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
- 
+
   } catch (e) {
     const eb = document.getElementById('errorBanner');
     eb.innerHTML = `<strong>Generation failed</strong> — ${escHtml(e.message)}. Verify GROQ_API_KEY is set in your Vercel environment variables.`;
