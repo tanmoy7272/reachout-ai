@@ -184,7 +184,7 @@ input, select, textarea {
   border-radius: var(--r); padding: 12px 15px;
   font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 400;
   color: var(--text); transition: border-color .2s, box-shadow .2s;
-  -webkit-appearance: none;
+  -webkit-appearance: none; appearance: none;
   width: 100%;
 }
 input::placeholder, textarea::placeholder { color: var(--muted2); }
@@ -450,6 +450,13 @@ footer {
  
 /* ─── REQUIRED STAR ─────────────────────────────── */
 .req { color: #FF6B6B; margin-left: 2px; }
+ 
+/* ─── ERROR BANNER ──────────────────────────────── */
+.error-banner {
+  margin-top: 16px; padding: 14px 18px;
+  background: rgba(255,107,107,0.08); border: 1px solid rgba(255,107,107,0.3);
+  border-radius: var(--r); color: #FF8A8A; font-size: 13px; line-height: 1.6;
+}
 </style>
 </head>
 <body>
@@ -543,7 +550,7 @@ footer {
           Job Description
           <span class="label-hint">(optional — paste JD for best results)</span>
         </label>
-        <textarea id="jd" rows="4" placeholder="Paste the job description here (or key requirements). This helps craft highly targeted messages." oninput="onInput()"></textarea>
+        <textarea id="jd" rows="4" placeholder="Paste the job description here (or key requirements). This helps craft highly targeted messages." oninput="autoResize(this);onInput()" style="overflow:hidden"></textarea>
       </div>
 
       <div class="field field-full">
@@ -724,6 +731,7 @@ footer {
       </div>
       <div class="loader-msg" id="loaderMsg">Crafting personalized messages…</div>
     </div>
+    <div class="error-banner" id="errorBanner" style="display:none"></div>
   </div>
  
   <!-- ─── RESULTS ─── -->
@@ -829,6 +837,12 @@ function setStepState(n, hasValue) {
   else { el.classList.remove('done'); el.classList.add('active'); el.textContent = n; }
 }
  
+/* ─── AUTO RESIZE ───────────────────── */
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 340) + 'px';
+}
+ 
 /* ─── COPY ──────────────────────────── */
 function copyMsg(ch, btn) {
   const text = generatedMsgs[ch] || '';
@@ -842,13 +856,25 @@ function copyMsg(ch, btn) {
   });
 }
  
+function copySubject(ch, btn) {
+  const text = document.getElementById('subject-' + ch)?.textContent || '';
+  navigator.clipboard.writeText(text).then(() => {
+    btn.classList.add('done');
+    btn.textContent = '\u2713 Copied';
+    setTimeout(() => {
+      btn.classList.remove('done');
+      btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy';
+    }, 2000);
+  });
+}
+ 
 /* ─── TABS ──────────────────────────── */
 const CH_META = {
-  linkedin: { label:'LinkedIn',   dot:'#0A66C2', hint:'InMail or Connection note · 4–5 lines max', icon:'in' },
-  whatsapp: { label:'WhatsApp',   dot:'#25D366', hint:'Short & casual · 3–4 lines · First name only', icon:'W' },
-  email:    { label:'Email',      dot:'#EA4335', hint:'Full email body with subject line · 5–7 lines', icon:'@' },
-  sms:      { label:'SMS',        dot:'#FF9F0A', hint:'160 chars max · Ultra concise · Clear CTA', icon:'SMS' },
-  twitter:  { label:'X / Twitter',dot:'#1DA1F2', hint:'DM · 280 chars max · Casual, direct', icon:'𝕏' },
+  linkedin: { label:'LinkedIn',   dot:'#0A66C2', hint:'InMail / connection note · 180–250 words', icon:'in' },
+  whatsapp: { label:'WhatsApp',   dot:'#25D366', hint:'Conversational · 100–140 words · Human tone', icon:'W' },
+  email:    { label:'Email',      dot:'#EA4335', hint:'Full recruiter email with subject · 220–300 words', icon:'@' },
+  sms:      { label:'SMS',        dot:'#FF9F0A', hint:'Max 155 chars · Substantive hook · Clear CTA', icon:'SMS' },
+  twitter:  { label:'X / Twitter',dot:'#1DA1F2', hint:'DM · Max 270 chars · Specific & direct', icon:'𝕏' },
 };
  
 function buildResultsUI(channels, result) {
@@ -871,6 +897,9 @@ function buildResultsUI(channels, result) {
     const isEmail = ch === 'email';
     const isSms = ch === 'sms';
     const isTw = ch === 'twitter';
+    const charLimit = isSms ? 155 : 270;
+    const overLimit = (isSms || isTw) && msg.length > charLimit;
+    const subject = escHtml(result.subject || '');
  
     const panel = document.createElement('div');
     panel.className = 'panel' + (i === 0 ? ' active' : '');
@@ -888,8 +917,8 @@ function buildResultsUI(channels, result) {
           </button>
         </div>
       </div>
-      ${isEmail ? `<div class="subject-badge"><span>Subject:</span> <strong id="subject-${ch}">${result.subject || ''}</strong></div>` : ''}
-      ${(isSms || isTw) ? `<div class="char-badge">⚠ Keep under ${isSms ? '160' : '280'} characters · <span id="charcount-${ch}">${msg.length} chars used</span></div>` : ''}
+      ${isEmail ? `<div class="subject-badge"><span>Subject:</span> <strong id="subject-${ch}">${subject}</strong><button class="copy-btn" style="padding:4px 10px;font-size:11px;margin-left:8px" onclick="copySubject('${ch}',this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy</button></div>` : ''}
+      ${(isSms || isTw) ? `<div class="char-badge" style="${overLimit ? 'background:rgba(255,107,107,0.1);border-color:rgba(255,107,107,0.4);color:#FF8A8A' : ''}">${overLimit ? '🔴' : '⚠'} ${charLimit}-char limit · <span id="charcount-${ch}" style="${overLimit ? 'font-weight:700' : ''}">${msg.length} used${overLimit ? ' — exceeds limit' : ''}</span></div>` : ''}
       <div class="msg-box" id="msgbox-${ch}">${escHtml(msg)}</div>
     `;
     panelsContainer.appendChild(panel);
@@ -932,7 +961,8 @@ async function generate() {
   const location = document.getElementById('location').value.trim();
   const comp     = document.getElementById('comp').value.trim();
   const hook     = document.getElementById('hook').value.trim();
-  const jd       = document.getElementById('jd').value.trim();
+  const jdRaw    = document.getElementById('jd').value.trim();
+  const jd       = jdRaw.length > 800 ? jdRaw.slice(0, 800) + '… [truncated]' : jdRaw;
   const ctitle   = document.getElementById('ctitle').value.trim();
   const exp      = document.getElementById('exp').value;
   const notable  = document.getElementById('notable').value.trim();
@@ -941,6 +971,8 @@ async function generate() {
   const scompany = document.getElementById('scompany').value.trim();
  
   const channels = Array.from(selectedChs);
+  Object.keys(generatedMsgs).forEach(k => delete generatedMsgs[k]);
+  document.getElementById('errorBanner').style.display = 'none';
  
   const btn = document.getElementById('genBtn');
   const loader = document.getElementById('loader');
@@ -960,7 +992,7 @@ async function generate() {
   const chRules = {
     linkedin: `LINKEDIN MESSAGE (InMail / connection note):
   • Length: 180–250 words — MUST be at least 180 words; under 150 words is unacceptable
-  • Opening sentence [Anchor]: Start with something specific and verifiable — the candidate's current company by name, their career trajectory, a direct skill or domain match, or an explicit reason they fit this role. NEVER open with "I came across your profile" or any generic compliment.
+  • Opening sentence [Anchor]: Start with something specific and verifiable — the candidate's current company by name, their career trajectory, a direct skill or domain match, or an explicit reason they fit this role. NEVER open with "I came across your profile" or any generic compliment. SPARSE DATA FALLBACK: if no current title, company, or notable detail was provided for the candidate, do NOT invent observations — instead anchor the opening on the most specific and compelling characteristic of the ROLE itself (its seniority, exact scope of ownership, compensation level, what the hiring company is building, or the rarity of the position).
   • Sentences 2–4 [Opportunity context]: Name the role title and hiring company explicitly. Share one genuinely compelling detail — scope of impact, team size, reporting structure, product/market stage, or compensation if available. If a job description was provided, reference at least one specific requirement or selling point from it.
   • Sentence 5 [Candidate-role fit]: Draw an explicit, specific connection between this candidate's background and the role. Reference their seniority, a specific skill, or career experience from the data provided.
   • Sentence 6 [CTA]: One clear, low-friction ask — "Would you be open to a 15-minute call this week?"
@@ -971,8 +1003,9 @@ async function generate() {
     whatsapp: `WHATSAPP MESSAGE:
   • Length: 100–140 words — must carry real substance and context, not just a skeleton message
   • Must read like a genuine WhatsApp message from a real person, not a formal letter or broadcast message
+  • HARD PROHIBITION: never use "I came across your background/profile" or any semantically equivalent phrase ("thought you'd be a great fit", "your skills make you a match", "I was impressed by your profile") — these are recognised as automated blast messages and will be ignored
   • Structure:
-    Line 1: "Hi [First name]! I'm [sender name] from [sender company]." + one sentence on exactly why you're reaching out to this person right now — tie it to something specific about their background
+    Line 1: Greeting ("Hi [First name]! I'm [sender name] from [sender company].") + one hook sentence — if candidate background data is available, tie it to their specific current role or company; if candidate data is sparse, state concisely why this particular ROLE deserves their attention right now (its comp, seniority, scope, or timing) — never invent an observation
     Lines 2–3: Role title + hiring company + the single strongest hook available (compensation if provided, remote or hybrid flexibility, company growth stage, scope of work, interesting team, reporting structure)
     Line 4: A brief, specific note on why this candidate in particular is a strong fit
     Last line: Warm, conversational ask — e.g. "Would you be open to a 15-min chat this week?"
@@ -988,19 +1021,23 @@ async function generate() {
 
     sms: `SMS:
   • ABSOLUTE HARD LIMIT: 155 characters total — count every single character including spaces, punctuation, and line breaks before finalising; exceeding 155 is a critical failure
-  • Despite the constraint, the message must deliver a meaningful, specific hook — not just name + role + company
-  • Strong formats that work within the limit:
-    "[First name], [Role] at [Company] — [comp or key benefit, 5–6 words]. Interested? Reply Y"
-    "[First name] — [Role] at [Company]. [One compelling hook]. Worth a chat? Reply Y"
+  • TARGET RANGE: 110–155 characters — leaving the budget unused means leaving persuasive impact unused; a 50-character SMS when 155 are available is wasted opportunity
+  • Name + role + comp alone is a floor, not a complete message — add one more hook: a location, a positioning cue ("senior leadership opening"), an urgency signal ("shortlisting this week"), or a scope detail
+  • Format templates that push toward the character ceiling:
+    "[First name] — [Role] at [Company], [Location]. [Comp]. [One punchy hook — scope, seniority, or urgency]. Reply Y?"
+    "[First name], [Role] at [Company] — [comp]. [One compelling positioning line]. Interested? Reply Y"
   • If compensation was provided, include it — compensation in SMS dramatically increases response rate
-  • Clean, direct, and punchy. No exclamation overload. No formal language. Every word earns its place.`,
+  • Clean, direct, and punchy. No exclamation overload. No formal language. Every character earns its place.`,
 
     twitter: `TWITTER / X DM:
   • ABSOLUTE HARD LIMIT: 270 characters total — count every character before finalising; exceeding 270 is a critical failure
-  • Despite the limit, the message must be specific — not a generic blast that could be sent to anyone
-  • Format options — choose whichever uses the available data best:
-    "[First name] — [one specific observation about their background or work]. [Role] at [Company] — [one compelling hook]. Open to a quick chat?"
-    "[First name] — [Role] at [Company] ([key hook or comp]). Your background in [specific area] makes this worth a look — interested?"
+  • TARGET RANGE: 210–270 characters — the full budget exists so you can make a real case; a 90-character DM when 270 are available is wasted opportunity and signals a form message
+  • The message must be specific — not a generic blast that could be sent to anyone
+  • Format options — choose whichever uses the available data best AND pushes toward the character ceiling:
+    "[First name] — [one specific observation beyond just their job title]. [Role] at [Company] — [comp or key hook]. [One more line: scope, team, or why now]. Open to a quick chat?"
+    "[First name] — [Role] at [Company] ([comp]). [Two sentences of genuine context — seniority, what they'd own, team structure, or why this opening is rare]. Interested?"
+  • FORBIDDEN: never say "your [role domain] skills make you a [fit/candidate]" — e.g. telling a Coding Lead candidate "your coding skills make this worth a look" states only the obvious and adds zero value
+  • SPARSE DATA FALLBACK: if no candidate-specific data is available, lean on the role's comp, seniority, or scope as the hook rather than inventing a candidate observation
   • Casual, direct, and punchy. Reads like a DM from someone who actually did their homework. No corporate language. No formal greeting.`,
   };
 
@@ -1064,7 +1101,9 @@ OUTPUT — respond with ONLY a valid JSON object. No markdown. No backticks. No 
     setTimeout(() => resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
  
   } catch (e) {
-    alert('Could not generate messages.\n\nError: ' + e.message + '\n\nCheck that GROQ_API_KEY is set in your Vercel environment variables.');
+    const eb = document.getElementById('errorBanner');
+    eb.innerHTML = `<strong>Generation failed</strong> — ${escHtml(e.message)}. Verify GROQ_API_KEY is set in your Vercel environment variables.`;
+    eb.style.display = 'block';
     console.error(e);
   }
  
