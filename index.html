@@ -959,73 +959,89 @@ async function generate() {
   // ─── CHANNEL RULES & PROMPT BUILD ──────────────────────
   const chRules = {
     linkedin: `LINKEDIN MESSAGE (InMail / connection note):
-  • Length: 4–6 sentences, 150–220 words
-  • Sentence 1: Open with something real and specific — their current company, a career transition, a notable skill, their experience arc. NEVER open with "I came across your profile" or a generic compliment.
-  • Sentences 2–3: Introduce the role title, the hiring company, and one genuinely compelling detail (scope of impact, team size, mission, compensation, growth stage)
-  • Sentence 4: Explicitly connect their specific background to why they — not just anyone — are a strong fit
-  • Sentence 5: A single low-friction CTA — e.g. "Would you be open to a quick 15-min call this week?"
-  • Final line (on its own): [Sender name] | [Sender role] at [Sender company]
-  • FORBIDDEN words: "exciting opportunity", "touch base", "Hope this finds you well", "impressive background"`,
+  • Length: 180–250 words — MUST be at least 180 words; under 150 words is unacceptable
+  • Opening sentence [Anchor]: Start with something specific and verifiable — the candidate's current company by name, their career trajectory, a direct skill or domain match, or an explicit reason they fit this role. NEVER open with "I came across your profile" or any generic compliment.
+  • Sentences 2–4 [Opportunity context]: Name the role title and hiring company explicitly. Share one genuinely compelling detail — scope of impact, team size, reporting structure, product/market stage, or compensation if available. If a job description was provided, reference at least one specific requirement or selling point from it.
+  • Sentence 5 [Candidate-role fit]: Draw an explicit, specific connection between this candidate's background and the role. Reference their seniority, a specific skill, or career experience from the data provided.
+  • Sentence 6 [CTA]: One clear, low-friction ask — "Would you be open to a 15-minute call this week?"
+  • Final line (standalone): [Sender name] | [Sender role] at [Sender company]
+  • If compensation was provided, mention it naturally in the opportunity context
+  • FORBIDDEN: "exciting opportunity", "touch base", "impressive background", "Hope this finds you well", "I came across your profile"`,
 
     whatsapp: `WHATSAPP MESSAGE:
-  • 3–5 short lines, 80–120 words — must read like a real human WhatsApp message, not a formal letter
-  • Line 1: "Hi [First name]! I'm [sender name] from [sender company]." + one sentence on exactly why you're reaching out right now
-  • Lines 2–3: Role title, hiring company, and one compelling hook (compensation / remote-friendly / growth / interesting scope)
-  • Last line: A soft open question — e.g. "Would you be open to a quick 15-min chat?"
-  • Warm and conversational. Short lines. No formal language. No bullet points inside the message.`,
+  • Length: 100–140 words — must carry real substance and context, not just a skeleton message
+  • Must read like a genuine WhatsApp message from a real person, not a formal letter or broadcast message
+  • Structure:
+    Line 1: "Hi [First name]! I'm [sender name] from [sender company]." + one sentence on exactly why you're reaching out to this person right now — tie it to something specific about their background
+    Lines 2–3: Role title + hiring company + the single strongest hook available (compensation if provided, remote or hybrid flexibility, company growth stage, scope of work, interesting team, reporting structure)
+    Line 4: A brief, specific note on why this candidate in particular is a strong fit
+    Last line: Warm, conversational ask — e.g. "Would you be open to a 15-min chat this week?"
+  • Natural line breaks. Short sentences. Warm and human. No bullet points inside the message. No formal language.
+  • If compensation was provided, include it — specific compensation details significantly increase WhatsApp response rates`,
 
-    email: `EMAIL BODY (the subject line is a separate JSON field — do NOT include it here):
-  • 180–240 words, formal professional recruiter email
-  • CRITICAL: use the two-character sequence \\n\\n between every paragraph — this is mandatory for correct line spacing
-  • Follow this EXACT structure (fill in the bracketed parts with real content):
-    "Hi [Candidate first name],\\n\\n[Opening paragraph — 2–3 sentences: reference their actual current role or company, then clearly state why you are writing to them specifically]\\n\\n[Middle paragraph — 2–3 sentences: describe what makes this role genuinely interesting — the work, the team, the scope of impact, and compensation if known]\\n\\n[Closing paragraph — 1–2 sentences: propose a concrete low-effort next step, e.g. 'Would a 20-minute call this week or next work for you?']\\n\\nBest regards,\\n[Sender full name]\\n[Sender role] | [Sender company]"
-  • No bullet points inside the email. No "Hope this finds you well." No generic filler.`,
+    email: `EMAIL BODY — the subject line is a separate JSON field ("subject"); do NOT include "Subject:" or the subject text inside this email body field:
+  • Length: 220–300 words — this is a full, professional recruiter email, not a brief note
+  • CRITICAL RENDERING REQUIREMENT: insert the exact two-character sequence \\n\\n between EVERY paragraph — this is technically mandatory for correct line spacing
+  • Fill every section below with fully specific, real content drawn from the provided data — zero placeholder text like [X] or [Company] in the final output:
+    "Hi [Candidate first name],\\n\\n[Opening paragraph — 2–3 sentences: Reference their current role and company by name. Explain specifically why you are reaching out to them — connect their background directly to the role requirements and what makes them the right fit.]\\n\\n[Role paragraph — 3–4 sentences: State the role title and hiring company name explicitly. Describe what makes this genuinely compelling — the work, the team, the scope of impact, and compensation or benefits if provided. Reference a specific detail from the job description if one was provided.]\\n\\n[Fit paragraph — 1–2 sentences: Draw an explicit connection between the candidate's specific experience and what the role requires.]\\n\\n[CTA paragraph — 1–2 sentences: Propose a specific, low-friction next step — e.g. 'Would a 20-minute call this week or next work for you?']\\n\\nBest regards,\\n[Sender full name]\\n[Sender role] | [Sender company]"
+  • No bullet points inside the body. No "Hope this finds you well." No generic filler openers or closers. No padding sentences.`,
 
     sms: `SMS:
-  • ABSOLUTE HARD LIMIT: 155 characters total — count every character including spaces and punctuation before finalising
-  • Format: "[First name], [Role] at [Company] — [one compelling hook in 5–8 words]. Interested? Reply Y"
-  • Ultra-concise. One sentence. No exclamation overload. No formal language.`,
+  • ABSOLUTE HARD LIMIT: 155 characters total — count every single character including spaces, punctuation, and line breaks before finalising; exceeding 155 is a critical failure
+  • Despite the constraint, the message must deliver a meaningful, specific hook — not just name + role + company
+  • Strong formats that work within the limit:
+    "[First name], [Role] at [Company] — [comp or key benefit, 5–6 words]. Interested? Reply Y"
+    "[First name] — [Role] at [Company]. [One compelling hook]. Worth a chat? Reply Y"
+  • If compensation was provided, include it — compensation in SMS dramatically increases response rate
+  • Clean, direct, and punchy. No exclamation overload. No formal language. Every word earns its place.`,
 
     twitter: `TWITTER / X DM:
-  • Absolute character limit: 270 characters total — do not exceed this
-  • Format: "[First name] — [one specific genuine observation about them or their work]. Have a [Role] opening at [Company] — [one hook]. Open to a quick chat?"
-  • Casual, direct, punchy. No corporate language. No formal greeting.`,
+  • ABSOLUTE HARD LIMIT: 270 characters total — count every character before finalising; exceeding 270 is a critical failure
+  • Despite the limit, the message must be specific — not a generic blast that could be sent to anyone
+  • Format options — choose whichever uses the available data best:
+    "[First name] — [one specific observation about their background or work]. [Role] at [Company] — [one compelling hook]. Open to a quick chat?"
+    "[First name] — [Role] at [Company] ([key hook or comp]). Your background in [specific area] makes this worth a look — interested?"
+  • Casual, direct, and punchy. Reads like a DM from someone who actually did their homework. No corporate language. No formal greeting.`,
   };
 
   const channelRulesBlock = channels.map(ch => chRules[ch]).join('\n\n');
 
   const chJsonKeys = [
-    ...(channels.includes('email') ? ['"subject": "<subject line — under 60 chars, no \'Subject:\' prefix, specific and curiosity-inducing — never generic>"'] : []),
-    ...channels.map(ch => `"${ch}": "<message>"`),
+    ...(channels.includes('email') ? ['"subject": "<compelling subject line — max 55 chars, no \'Subject:\' prefix, specific to this role and candidate, never generic — curiosity-inducing and click-worthy>"'] : []),
+    ...channels.map(ch => `"${ch}": "<fully written message — no placeholder text remaining>"`),
   ].join(',\n  ');
 
-  const prompt = `CONTEXT — generate recruiter outreach messages for the following:
+  const prompt = `You are generating recruiter outreach messages. Hold yourself to the highest standard: every message must feel like it was written by a world-class senior recruiter who personally researched this candidate for this specific role. If any message could apply to a different candidate or a different role without modification, it has failed.
+
+DATA MANDATE: Use every piece of information provided below. Compensation available → mention it in the message. Job description available → extract and reference specific details from it. Notable candidate detail available → open with or reference it directly. Experience level provided → calibrate tone and sophistication accordingly. The more data provided, the deeper and more personalized each message must be.
+
+CONTEXT:
 
 ROLE BEING HIRED FOR:
 - Title: ${role}
 - Hiring company: ${company || 'not specified'}
 - Location: ${location || 'not specified'}
 - Compensation: ${comp || 'not specified'}
-- Why it is a great opportunity: ${hook || 'not specified'}${jd ? `\n- Job description: ${jd}` : ''}
+- What makes this opportunity compelling: ${hook || 'not specified'}${jd ? `\n- Job description / key requirements: ${jd}` : ''}
 
-CANDIDATE BEING REACHED OUT TO:
+CANDIDATE:
 - Name: ${cname}
 - Current title / company: ${ctitle || 'not specified'}
 - Experience level: ${exp || 'not specified'}
-- Notable detail about them: ${notable || 'not specified'}
+- Notable detail: ${notable || 'not specified'}
 
-SENDER (person whose name signs these messages):
+SENDER:
 - Name: ${sender || 'the recruiter'}
 - Title: ${srole || 'Recruiter'}
 - Company: ${scompany || 'not specified'}
 
-OVERALL TONE: ${tone}
+TONE: ${tone}
 
-CHANNEL-SPECIFIC WRITING RULES — follow each one precisely:
+CHANNEL-SPECIFIC RULES — follow every instruction precisely for each channel:
 
 ${channelRulesBlock}
 
-OUTPUT — respond with ONLY the following JSON object, nothing else before or after it:
+OUTPUT — respond with ONLY a valid JSON object. No markdown. No backticks. No text before or after the JSON. Every field must contain fully written-out content — no placeholder text like [Company] or [Role] remaining in any message:
 {
   ${chJsonKeys}
 }`;
