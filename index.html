@@ -370,14 +370,26 @@ textarea { resize: none; line-height: 1.6; }
 .copy-btn:hover { border-color: var(--a); color: var(--a2); }
 .copy-btn.done { border-color: var(--success); color: var(--success); }
  
-.regen-btn {
-  display: flex; align-items: center; gap: 6px;
-  padding: 8px 14px; background: transparent; border: 1px solid var(--border);
-  border-radius: var(--r); color: var(--muted2); font-family: 'Manrope', sans-serif;
-  font-size: 12px; font-weight: 500; cursor: pointer; transition: all .16s;
+/* ─── LINES STEPPER ───────────────────── */
+.lines-ctrl {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--r);
+  background: var(--s3);
 }
-.regen-btn:hover { border-color: var(--border2); color: var(--muted); }
- 
+.lines-ctrl button {
+  width: 20px; height: 20px; border-radius: 5px; border: none;
+  background: transparent; color: var(--muted); cursor: pointer;
+  font-size: 15px; font-weight: 400; line-height: 1; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: color .15s;
+}
+.lines-ctrl button:hover:not([disabled]) { color: var(--text); }
+.lines-ctrl button[disabled] { opacity: 0.3; cursor: default; }
+.lines-ctrl .lines-val {
+  min-width: 16px; text-align: center; font-size: 12px; font-weight: 700; color: var(--text);
+}
+.lines-ctrl .lines-label { font-size: 11px; color: var(--muted2); padding: 0 2px; }
+
 .subject-badge {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 14px; margin-bottom: 14px;
@@ -1031,7 +1043,7 @@ async function regenChannel(ch, btn) {
   const comp     = document.getElementById('comp').value.trim();
   const hook     = document.getElementById('hook').value.trim();
   const jdRaw    = document.getElementById('jd').value.trim();
-  const jd       = jdRaw.length > 800 ? jdRaw.slice(0, 800) + '… [truncated]' : jdRaw;
+  const jd       = jdRaw.length > 1500 ? jdRaw.slice(0, 1500) + '… [truncated]' : jdRaw;
   const ctitle   = document.getElementById('ctitle').value.trim();
   const exp      = document.getElementById('exp').value;
   const notable  = document.getElementById('notable').value.trim();
@@ -1050,7 +1062,7 @@ async function regenChannel(ch, btn) {
     ...(isEmail ? ['"subject": "<compelling subject line — max 55 chars>"'] : []),
     `"${ch}": "<fully written message>"`,
   ].join(',\n  ');
-  const regenPrompt = `Generate one recruiter outreach message. Apply all rules at the highest standard — personally researched, human, and specific to this candidate and role.\nDATA MANDATE: Use every detail below proportionally.\nROLE: ${role} at ${company || 'not specified'} · ${location || 'not specified'} · Comp: ${comp || 'not specified'}${hook ? ' · ' + hook : ''}${jd ? '\nJD: ' + jd : ''}\nCANDIDATE: ${cname}${ctitle ? ' · ' + ctitle : ''}${exp ? ' · ' + exp : ''}${notable ? ' · ' + notable : ''}\nSENDER: ${sender || 'the recruiter'}${srole ? ', ' + srole : ''}${scompany ? ' at ' + scompany : ''}\nTONE: ${tone}\nCHANNEL RULE:\n${chRules[ch]}\nOUTPUT — ONLY valid JSON, no markdown, no text outside JSON:\n{\n  ${chJsonKey}\n}`;
+  const regenPrompt = `Generate one recruiter outreach message. Apply all rules at the highest standard — personally researched, human, and specific to this candidate and role.\nDATA MANDATE: Use every detail below proportionally.\nROLE: ${role} at ${company || 'not specified'} · ${location || 'not specified'} · Comp: ${comp || 'not specified'}${hook ? ' · ' + hook : ''}${jd ? '\nJD: ' + jd : ''}\nCANDIDATE: ${cname}${ctitle ? ' · ' + ctitle : ''}${exp ? ' · ' + exp : ''}${notable ? ' · ' + notable : ''}\nSENDER: ${sender || 'the recruiter'}${srole ? ', ' + srole : ''}${scompany ? ' at ' + scompany : ''}\nTONE: ${tone}\nCHANNEL RULE:\n${chRules[ch]}\n  • TARGET LENGTH: write to fill exactly ${chLines[ch] || CH_LINES_DEFAULT[ch]} lines\nOUTPUT — ONLY valid JSON, no markdown, no text outside JSON:\n{\n  ${chJsonKey}\n}`;
   try {
     const res = await fetch('/api/generate', {
       method: 'POST',
@@ -1103,7 +1115,20 @@ const CH_META = {
   sms:      { label:'SMS',        dot:'#FF9F0A', hint:'Max 155 chars · Substantive hook · Clear CTA', icon:'SMS' },
   twitter:  { label:'X / Twitter',dot:'#1DA1F2', hint:'DM · Max 270 chars · Specific & direct', icon:'𝕏' },
 };
- 
+
+/* ─── PER-CHANNEL LINE TARGETS ─────────────── */
+// Defaults are market-standard lengths for each channel
+const CH_LINES_DEFAULT = { linkedin:14, whatsapp:8, email:18, sms:2, twitter:2 };
+const CH_LINES_LIMITS  = {
+  linkedin: { min:8,  max:20 },
+  whatsapp: { min:5,  max:14 },
+  email:    { min:12, max:25 },
+  sms:      { min:1,  max:2  },
+  twitter:  { min:1,  max:3  },
+};
+let chLines = { ...CH_LINES_DEFAULT }; // mutated by adjLines()
+let _adjLinesTimers = {};
+
 function buildResultsUI(channels, result) {
   const tabsBar = document.getElementById('tabsBar');
   const panelsContainer = document.getElementById('panelsContainer');
@@ -1138,6 +1163,12 @@ function buildResultsUI(channels, result) {
           <p>${m.hint}</p>
         </div>
         <div class="action-row">
+          <div class="lines-ctrl" title="Target lines — click +/− to resize &amp; regenerate">
+            <button type="button" onclick="adjLines('${ch}',-1)" ${chLines[ch]<=CH_LINES_LIMITS[ch].min?'disabled':''}>−</button>
+            <span class="lines-val" id="linesval-${ch}">${chLines[ch]}</span>
+            <span class="lines-label">lines</span>
+            <button type="button" onclick="adjLines('${ch}',1)" ${chLines[ch]>=CH_LINES_LIMITS[ch].max?'disabled':''}>+</button>
+          </div>
           <button class="regen-btn" id="regenbtn-${ch}" onclick="regenChannel('${ch}', this)" title="Regenerate this message">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
             Regenerate
@@ -1166,7 +1197,27 @@ function switchTab(ch) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === ch));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + ch));
 }
- 
+
+function adjLines(ch, delta) {
+  const lim = CH_LINES_LIMITS[ch];
+  chLines[ch] = Math.max(lim.min, Math.min(lim.max, chLines[ch] + delta));
+  const valEl = document.getElementById('linesval-' + ch);
+  if (valEl) valEl.textContent = chLines[ch];
+  // Update +/− disabled state
+  const ctrl = valEl?.closest('.lines-ctrl');
+  if (ctrl) {
+    const [btnMinus, btnPlus] = ctrl.querySelectorAll('button');
+    btnMinus.disabled = chLines[ch] <= lim.min;
+    btnPlus.disabled  = chLines[ch] >= lim.max;
+  }
+  // Debounce regen per channel so rapid clicks only fire once
+  clearTimeout(_adjLinesTimers[ch]);
+  _adjLinesTimers[ch] = setTimeout(
+    () => regenChannel(ch, document.getElementById('regenbtn-' + ch)),
+    450
+  );
+}
+
 /* ─── CHANNEL RULES (module-level) ──── */
 let chRules = {};
  
@@ -1198,14 +1249,14 @@ async function generate() {
   const comp     = document.getElementById('comp').value.trim();
   const hook     = document.getElementById('hook').value.trim();
   const jdRaw    = document.getElementById('jd').value.trim();
-  const jd       = jdRaw.length > 800 ? jdRaw.slice(0, 800) + '… [truncated]' : jdRaw;
+  const jd       = jdRaw.length > 1500 ? jdRaw.slice(0, 1500) + '… [truncated]' : jdRaw;
   const ctitle   = document.getElementById('ctitle').value.trim();
   const exp      = document.getElementById('exp').value;
   const notable  = document.getElementById('notable').value.trim();
   const sender   = document.getElementById('sender').value.trim();
   const srole    = document.getElementById('srole').value.trim();
   const scompany = document.getElementById('scompany').value.trim();
- 
+
   const channels = Array.from(selectedChs);
   Object.keys(generatedMsgs).forEach(k => delete generatedMsgs[k]);
   document.getElementById('errorBanner').style.display = 'none';
@@ -1234,7 +1285,8 @@ async function generate() {
   • Sentence 6 [CTA]: One clear, low-friction ask — "Would you be open to a 15-minute call this week?"
   • Final line (standalone): [Sender name] | [Sender role] at [Sender company]
   • If compensation was provided, mention it naturally in the opportunity context
-  • FORBIDDEN: "exciting opportunity", "touch base", "impressive background", "Hope this finds you well", "I came across your profile"`,
+  • FORBIDDEN: "exciting opportunity", "touch base", "impressive background", "Hope this finds you well", "I came across your profile"
+  • FORMAT: in the JSON string, separate each paragraph with \\n\\n (a blank line). Clean prose paragraphs — no bullet points or numbered lists inside the message body`,
 
     whatsapp: `WHATSAPP MESSAGE:
   • Length: 100–140 words — must carry real substance and context, not just a skeleton message
@@ -1246,7 +1298,8 @@ async function generate() {
     Line 4: A brief, specific note on why this candidate in particular is a strong fit
     Last line: Warm, conversational ask — e.g. "Would you be open to a 15-min chat this week?"
   • Natural line breaks. Short sentences. Warm and human. No bullet points inside the message. No formal language.
-  • If compensation was provided, include it — specific compensation details significantly increase WhatsApp response rates`,
+  • If compensation was provided, include it — specific compensation details significantly increase WhatsApp response rates
+  • FORMAT: in the JSON string, separate each line/section with \\n (single line break) — NOT \\n\\n double-spacing — reads as natural chat, not a formal letter`,
 
     email: `EMAIL BODY — the subject line is a separate JSON field ("subject"); do NOT include "Subject:" or the subject text inside this email body field:
   • Length: 220–300 words — this is a full, professional recruiter email, not a brief note
@@ -1263,7 +1316,8 @@ async function generate() {
     "[First name] — [Role] at [Company], [Location]. [Comp]. [One punchy hook — scope, seniority, or urgency]. Reply Y?"
     "[First name], [Role] at [Company] — [comp]. [One compelling positioning line]. Interested? Reply Y"
   • If compensation was provided, include it — compensation in SMS dramatically increases response rate
-  • Clean, direct, and punchy. No exclamation overload. No formal language. Every character earns its place.`,
+  • Clean, direct, and punchy. No exclamation overload. No formal language. Every character earns its place.
+  • FORMAT: output as a single unbroken line — zero \\n characters anywhere in the output`,
 
     twitter: `TWITTER / X DM:
   • ABSOLUTE HARD LIMIT: 270 characters total — count every character before finalising; exceeding 270 is a critical failure
@@ -1274,10 +1328,13 @@ async function generate() {
     "[First name] — [Role] at [Company] ([comp]). [Two sentences of genuine context — seniority, what they'd own, team structure, or why this opening is rare]. Interested?"
   • FORBIDDEN: never say "your [role domain] skills make you a [fit/candidate]" — e.g. telling a Coding Lead candidate "your coding skills make this worth a look" states only the obvious and adds zero value
   • SPARSE DATA FALLBACK: if no candidate-specific data is available, lean on the role's comp, seniority, or scope as the hook rather than inventing a candidate observation
-  • Casual, direct, and punchy. Reads like a DM from someone who actually did their homework. No corporate language. No formal greeting.`,
+  • Casual, direct, and punchy. Reads like a DM from someone who actually did their homework. No corporate language. No formal greeting.
+  • FORMAT: output as a single unbroken line — zero \\n characters anywhere in the output`,
   };
 
-  const channelRulesBlock = channels.map(ch => chRules[ch]).join('\n\n');
+  const channelRulesBlock = channels.map(ch =>
+    chRules[ch] + `\n  • TARGET LENGTH: write to fill exactly ${chLines[ch]} lines — count each visible text line and each blank separator line toward this total`
+  ).join('\n\n');
 
   const chJsonKeys = [
     ...(channels.includes('email') ? ['"subject": "<compelling subject line — max 55 chars, no \'Subject:\' prefix, specific to this role and candidate, never generic — curiosity-inducing and click-worthy>"'] : []),
