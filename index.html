@@ -1069,7 +1069,10 @@ async function regenChannel(ch, btn) {
     ...(isEmail ? ['"subject": "<compelling subject line — max 55 chars>"'] : []),
     `"${ch}": "<fully written message>"`,
   ].join(',\n  ');
-  const regenPrompt = `Generate one recruiter outreach message. Apply all rules at the highest standard — personally researched, human, and specific to this candidate and role.\nDATA MANDATE: Use every detail below proportionally.\nROLE: ${role} at ${company || 'not specified'} · ${location || 'not specified'} · Comp: ${comp || 'not specified'}${hook ? ' · ' + hook : ''}${jd ? '\nJD: ' + jd : ''}\nCANDIDATE: ${cname}${ctitle ? ' · ' + ctitle : ''}${exp ? ' · ' + exp : ''}${notable ? ' · ' + notable : ''}\nSENDER: ${sender || 'the recruiter'}${srole ? ', ' + srole : ''}${scompany ? ' at ' + scompany : ''}\nTONE: ${tone}\nCHANNEL RULE:\n${chRules[ch]}\n  • TARGET LENGTH: approximately ${chLines[ch] || CH_LINES_DEFAULT[ch]} lines — adjust message depth and number of specific points included; NEVER add blank lines or padding to reach this count; preserve the channel’s natural formatting\nOUTPUT — ONLY valid JSON, no markdown, no text outside JSON:\n{\n  ${chJsonKey}\n}`;
+  const _linesN = chLines[ch] || CH_LINES_DEFAULT[ch];
+  const _linesDir = (ch === 'sms' || ch === 'twitter') ? '' :
+    `\n  • TARGET LENGTH: write EXACTLY ${_linesN * (CH_WORDS_PER_LINE[ch] || 13)} words of prose content (${_linesN} lines × ~${CH_WORDS_PER_LINE[ch] || 13} words/line); blank-line separators do NOT count toward word total; NEVER add blank lines or filler`;
+  const regenPrompt = `Generate one recruiter outreach message. Apply all rules at the highest standard — personally researched, human, and specific to this candidate and role.\nDATA MANDATE: Use every detail below proportionally.\nROLE: ${role} at ${company || 'not specified'} · ${location || 'not specified'} · Comp: ${comp || 'not specified'}${hook ? ' · ' + hook : ''}${jd ? '\nJD: ' + jd : ''}\nCANDIDATE: ${cname}${ctitle ? ' · ' + ctitle : ''}${exp ? ' · ' + exp : ''}${notable ? ' · ' + notable : ''}\nSENDER: ${sender || 'the recruiter'}${srole ? ', ' + srole : ''}${scompany ? ' at ' + scompany : ''}\nTONE: ${tone}\nCHANNEL RULE:\n${chRules[ch]}${_linesDir}\nOUTPUT — ONLY valid JSON, no markdown, no text outside JSON:\n{\n  ${chJsonKey}\n}`;
   try {
     const res = await fetch('/api/generate', {
       method: 'POST',
@@ -1115,24 +1118,25 @@ async function regenChannel(ch, btn) {
  
 /* ─── TABS ──────────────────────────── */
 const CH_META = {
-  linkedin: { label:'LinkedIn',   dot:'#0A66C2', hint:'InMail / connection note · 180–250 words', icon:'in' },
-  whatsapp: { label:'WhatsApp',   dot:'#25D366', hint:'Conversational · 100–140 words · Human tone', icon:'W' },
-  email:    { label:'Email',      dot:'#EA4335', hint:'Full recruiter email with subject · 220–300 words', icon:'@' },
+  linkedin: { label:'LinkedIn',   dot:'#0A66C2', hint:'InMail / connection note · Direct & personal', icon:'in' },
+  whatsapp: { label:'WhatsApp',   dot:'#25D366', hint:'Conversational · Short & human · Chat-style', icon:'W' },
+  email:    { label:'Email',      dot:'#EA4335', hint:'Full recruiter email with subject · Structured', icon:'@' },
   sms:      { label:'SMS',        dot:'#FF9F0A', hint:'Max 155 chars · Substantive hook · Clear CTA', icon:'SMS' },
   twitter:  { label:'X / Twitter',dot:'#1DA1F2', hint:'DM · Max 270 chars · Specific & direct', icon:'𝕏' },
 };
 
 /* ─── PER-CHANNEL LINE TARGETS ─────────────── */
-// Defaults are market-standard lengths for each channel
-const CH_LINES_DEFAULT = { linkedin:14, whatsapp:8, email:18, sms:3, twitter:3 };
+const CH_LINES_DEFAULT = { linkedin:10, whatsapp:5, email:15, sms:3, twitter:3 };
+// words-per-line multiplier: converts lines-UI value → word-count target for the model
+const CH_WORDS_PER_LINE = { linkedin:13, whatsapp:11, email:14 };
 const CH_LINES_LIMITS  = {
-  linkedin: { min:6,  max:35 },
-  whatsapp: { min:4,  max:22 },
-  email:    { min:8,  max:45 },
+  linkedin: { min:4,  max:25 },
+  whatsapp: { min:2,  max:15 },
+  email:    { min:5,  max:30 },
   sms:      { min:1,  max:5  },
   twitter:  { min:1,  max:7  },
 };
-let chLines = { ...CH_LINES_DEFAULT }; // mutated by adjLines()
+let chLines = { ...CH_LINES_DEFAULT };
 let _adjLinesTimers = {};
 
 function buildResultsUI(channels, result) {
@@ -1169,12 +1173,12 @@ function buildResultsUI(channels, result) {
           <p>${m.hint}</p>
         </div>
         <div class="action-row">
-          <div class="lines-ctrl" title="Target message length — type a number or click +/−. Regenerates automatically after a moment.">
+          ${(ch !== 'sms' && ch !== 'twitter') ? `<div class="lines-ctrl" title="Target message length — type a number or click +/−. Regenerates automatically after a moment.">
             <button type="button" onclick="adjLines('${ch}',-1)" ${chLines[ch]<=CH_LINES_LIMITS[ch].min?'disabled':''}>−</button>
             <input type="number" class="lines-val" id="linesval-${ch}" value="${chLines[ch]}" min="${CH_LINES_LIMITS[ch].min}" max="${CH_LINES_LIMITS[ch].max}" onchange="setLines('${ch}',this.value)" onkeydown="if(event.key==='Enter'){setLines('${ch}',this.value);this.blur()}" title="Type a number and press Enter">
             <span class="lines-label">lines</span>
             <button type="button" onclick="adjLines('${ch}',1)" ${chLines[ch]>=CH_LINES_LIMITS[ch].max?'disabled':''}>+</button>
-          </div>
+          </div>` : ''}
           <button class="regen-btn" id="regenbtn-${ch}" onclick="regenChannel('${ch}', this)" title="Regenerate this message">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
             Regenerate
@@ -1213,15 +1217,16 @@ function switchTab(ch) {
 function setLines(ch, rawVal) {
   const lim = CH_LINES_LIMITS[ch];
   const val = Math.max(lim.min, Math.min(lim.max, parseInt(rawVal, 10) || chLines[ch]));
-  chLines[ch] = val;
   const inp = document.getElementById('linesval-' + ch);
-  if (inp) inp.value = val; // works for <input type=number>
-  const ctrl = inp?.closest('.lines-ctrl');
+  if (inp) inp.value = val; // always reset display (corrects out-of-range typed values)
+  if (val === chLines[ch]) return; // no change — skip regen (prevents spurious regen at limits)
+  chLines[ch] = val;
+  const ctrl = inp ? inp.closest('.lines-ctrl') : null;
   if (ctrl) {
     const [btnMinus, btnPlus] = ctrl.querySelectorAll('button');
     btnMinus.disabled = val <= lim.min;
     btnPlus.disabled  = val >= lim.max;
-    ctrl.classList.add('pending'); // accent border shows regen is coming
+    ctrl.classList.add('pending');
   }
   clearTimeout(_adjLinesTimers[ch]);
   _adjLinesTimers[ch] = setTimeout(() => {
@@ -1292,7 +1297,6 @@ async function generate() {
   // ─── CHANNEL RULES & PROMPT BUILD ──────────────────────
   chRules = {
     linkedin: `LINKEDIN MESSAGE (InMail / connection note):
-  • Length: 180–250 words — MUST be at least 180 words; under 150 words is unacceptable
   • Greeting: the VERY FIRST line must always be "Hi [Candidate first name]," — in the JSON string write this followed immediately by \\n\\n before the anchor paragraph
   • Opening sentence [Anchor]: Start with something specific and verifiable — the candidate's current company by name, their career trajectory, a direct skill or domain match, or an explicit reason they fit this role. NEVER open with "I came across your profile" or any generic compliment. SPARSE DATA FALLBACK: if no current title, company, or notable detail was provided for the candidate, do NOT invent observations — instead anchor the opening on the most specific and compelling characteristic of the ROLE itself (its seniority, exact scope of ownership, compensation level, what the hiring company is building, or the rarity of the position).
   • Sentences 2–4 [Opportunity context]: Name the role title and hiring company explicitly. Share one genuinely compelling detail — scope of impact, team size, reporting structure, product/market stage, or compensation if available. If a job description was provided, reference at least one specific requirement or selling point from it.
@@ -1301,26 +1305,25 @@ async function generate() {
   • Final line (standalone): [Sender name] | [Sender role] at [Sender company]
   • If compensation was provided, mention it naturally in the opportunity context
   • FORBIDDEN: "exciting opportunity", "touch base", "impressive background", "Hope this finds you well", "I came across your profile"
-  • FORMAT: in the JSON string, separate each paragraph with \\n\\n (a blank line). Clean prose paragraphs — no bullet points or numbered lists inside the message body`,
+  • FORMAT (MANDATORY): in the JSON string, separate each paragraph with EXACTLY \\n\\n — never \\n alone between paragraphs and never \\n\\n\\n or more; clean prose paragraphs only, no bullet points or lists inside the message body; adding extra blank lines is a critical format failure`,
 
     whatsapp: `WHATSAPP MESSAGE:
-  • Length: 100–140 words — must carry real substance and context, not just a skeleton message
-  • Must read like a genuine WhatsApp message from a real person, not a formal letter or broadcast message
+  • Must read like a genuine WhatsApp message from a real person, not a formal letter or broadcast message — every word earns its place
   • HARD PROHIBITION: never use "I came across your background/profile" or any semantically equivalent phrase ("thought you'd be a great fit", "your skills make you a match", "I was impressed by your profile") — these are recognised as automated blast messages and will be ignored
-  • Structure:
-    Line 1: Greeting ("Hi [First name]! I'm [sender name] from [sender company].") + one hook sentence — if candidate background data is available, tie it to their specific current role or company; if candidate data is sparse, state concisely why this particular ROLE deserves their attention right now (its comp, seniority, scope, or timing) — never invent an observation
-    Lines 2–3: Role title + hiring company + the single strongest hook available (compensation if provided, remote or hybrid flexibility, company growth stage, scope of work, interesting team, reporting structure)
-    Line 4: A brief, specific note on why this candidate in particular is a strong fit
+  • Structure (scale depth to the target word count):
+    Opening: Greeting ("Hi [First name]! I'm [sender name] from [sender company].") + one specific hook sentence — if candidate data is available, tie it to their current role or company; if sparse, anchor on why this ROLE deserves attention (comp, seniority, scope, timing) — never invent an observation
+    Middle: Role title + hiring company + the single strongest hook available (comp if provided, remote/hybrid, growth stage, scope, team) — expand detail to fill the word count
+    Near end: A brief, specific note on why this candidate in particular is a strong fit
     Last line: Warm, conversational ask — e.g. "Would you be open to a 15-min chat this week?"
-  • Natural line breaks. Short sentences. Warm and human. No bullet points inside the message. No formal language.
+  • Short sentences. Warm and human. No bullet points inside the message. No formal language.
   • If compensation was provided, include it — specific compensation details significantly increase WhatsApp response rates
-  • FORMAT: in the JSON string, separate each line/section with \\n (single line break) — NOT \\n\\n double-spacing — reads as natural chat, not a formal letter`,
+  • FORMAT (MANDATORY): in the JSON string, separate every line/section with EXACTLY \\n (one line break only) — NEVER \\n\\n (double break) anywhere in the message; double-spacing completely destroys the WhatsApp chat feel and is a critical format failure`,
 
     email: `EMAIL BODY — the subject line is a separate JSON field ("subject"); do NOT include "Subject:" or the subject text inside this email body field:
-  • Length: 220–300 words — this is a full, professional recruiter email, not a brief note
-  • CRITICAL RENDERING REQUIREMENT: insert the exact two-character sequence \\n\\n between EVERY paragraph — this is technically mandatory for correct line spacing
+  • FORMAT (MANDATORY): in the JSON string, separate EVERY paragraph with EXACTLY \\n\\n — never \\n alone between paragraphs, never \\n\\n\\n or more; this includes between greeting and first paragraph and between last paragraph and sign-off; any deviation is a critical failure
   • Fill every section below with fully specific, real content drawn from the provided data — zero placeholder text like [X] or [Company] in the final output:
     "Hi [Candidate first name],\\n\\n[Opening paragraph — 2–3 sentences: Reference their current role and company by name. Explain specifically why you are reaching out to them — connect their background directly to the role requirements and what makes them the right fit.]\\n\\n[Role paragraph — 3–4 sentences: State the role title and hiring company name explicitly. Describe what makes this genuinely compelling — the work, the team, the scope of impact, and compensation or benefits if provided. Reference a specific detail from the job description if one was provided.]\\n\\n[Fit paragraph — 1–2 sentences: Draw an explicit connection between the candidate's specific experience and what the role requires.]\\n\\n[CTA paragraph — 1–2 sentences: Propose a specific, low-friction next step — e.g. 'Would a 20-minute call this week or next work for you?']\\n\\nBest regards,\\n[Sender full name]\\n[Sender role] | [Sender company]"
+  • Scale each paragraph's depth to hit the TARGET LENGTH word count — richer prose per paragraph, not more paragraphs or extra blank lines
   • No bullet points inside the body. No "Hope this finds you well." No generic filler openers or closers. No padding sentences.`,
 
     sms: `SMS:
@@ -1347,9 +1350,12 @@ async function generate() {
   • FORMAT: output as a single unbroken line — zero \\n characters anywhere in the output`,
   };
 
-  const channelRulesBlock = channels.map(ch =>
-    chRules[ch] + `\n  • TARGET LENGTH: approximately ${chLines[ch]} lines — achieve this by adjusting message depth, detail richness, and number of specific points included; NEVER add blank lines, padding sentences, or filler content to reach the count; natural channel-appropriate formatting must be strictly preserved`
-  ).join('\n\n');
+  const channelRulesBlock = channels.map(ch => {
+    if (ch === 'sms' || ch === 'twitter') return chRules[ch];
+    const wpl = CH_WORDS_PER_LINE[ch];
+    const targetWords = chLines[ch] * wpl;
+    return chRules[ch] + `\n  • TARGET LENGTH: write EXACTLY ${targetWords} words of prose content (${chLines[ch]} lines × ~${wpl} words/line); blank-line separators (\\n\\n) between paragraphs do NOT count toward the word total — count written prose words only; NEVER add blank lines, padding sentences, or filler to inflate the count`;
+  }).join('\n\n');
 
   const chJsonKeys = [
     ...(channels.includes('email') ? ['"subject": "<compelling subject line — max 55 chars, no \'Subject:\' prefix, specific to this role and candidate, never generic — curiosity-inducing and click-worthy>"'] : []),
